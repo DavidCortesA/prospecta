@@ -15,7 +15,7 @@ Bot de captación de clientes con dashboard.
 ## Puesta en marcha
 
 1. **Base de datos**: en el SQL Editor de Supabase ejecuta, en orden, los archivos de `supabase/migrations/`:
-   `0001_init` → `0002_lead_management` → `0003_clients_projects` → `0004_catalog_quotes` → `0006_lead_external_id` → `0007_followups` → `0008_message_templates` → `0009_public_quotes` → `0010_lead_location` → `0011_site_audits` → `0012_mxn_currency` (y, opcional, `0005_seed_features_example` con features de ejemplo). Crea un usuario en Authentication → Users.
+   `0001_init` → `0002_lead_management` → `0003_clients_projects` → `0004_catalog_quotes` → `0006_lead_external_id` → `0007_followups` → `0008_message_templates` → `0009_public_quotes` → `0010_lead_location` → `0011_site_audits` → `0012_mxn_currency` → `0013_restrict_access` (y, opcional, `0005_seed_features_example` con features de ejemplo). Crea un usuario en Authentication → Users.
 2. **Redis**: `docker compose up -d`
 3. **Web**: copia `apps/web/.env.example` a `.env.local`, completa los valores y ejecuta
    ```bash
@@ -30,7 +30,7 @@ Bot de captación de clientes con dashboard.
 
 - **Web (`apps/web`) → Vercel.** *Root Directory* = `apps/web`; variables `NEXT_PUBLIC_SUPABASE_URL` y `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`.
 - **Worker (`apps/worker`) + Redis → Railway.**
-  1. En el proyecto de Railway agrega un servicio Redis (base de datos) y otro servicio desde este repo con *Root Directory* = `apps/worker` (usa el `Dockerfile` y `railway.json`).
+  1. En el proyecto de Railway agrega un servicio Redis (base de datos) y otro servicio desde este repo con *Root Directory* = `apps/worker` (Railway detecta y usa el `Dockerfile`).
   2. Variables del worker: `REDIS_URL` (referencia `${{Redis.REDIS_URL}}`), `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`, `USER_AGENT`.
   3. Comprueba que Redis use la política de memoria `noeviction` (requisito de BullMQ).
 
@@ -179,4 +179,4 @@ El colector web con Playwright solo corre si la fuente tiene `scraping_allowed =
 
 ## Versiones
 
-Se usan tags semánticos: `v0.1.0` base web + auth · `v0.2.0` esquema DB + Redis · `v0.3.0` worker · `v0.4.0` dashboard · `v0.5.0` despliegue (Dockerfile del worker + Railway/Vercel) · `v0.6.0` diseño, PWA y resumen · `v0.7.0` prospectos, pipeline y fuentes · `v0.8.0` clientes, proyectos y cierres · `v0.9.0` catálogo y cotizaciones · `v0.10.0` fuente DENUE (paginación, filtros, score y avisos agrupados) · `v0.11.0` control de prospectos desde Telegram · `v0.12.0` seguimientos y resumen diario · `v0.13.0` plantillas de WhatsApp y correo · `v0.14.0` cotización pública con aceptar · `v0.15.0` asistente DENUE · `v0.16.0` mapa, ubicación y rutas · `v0.17.0` revisión del sitio web · **`v1.0.0`** primera versión estable · `v1.1.0` íconos Lucide y moneda MXN · `v1.2.0` propuesta por correo en Telegram · `v1.2.1` corrección del asistente DENUE · `v1.3.0` importar de Google Maps (ver [CHANGELOG](CHANGELOG.md)).
+Se usan tags semánticos: `v0.1.0` base web + auth · `v0.2.0` esquema DB + Redis · `v0.3.0` worker · `v0.4.0` dashboard · `v0.5.0` despliegue (Dockerfile del worker + Railway/Vercel) · `v0.6.0` diseño, PWA y resumen · `v0.7.0` prospectos, pipeline y fuentes · `v0.8.0` clientes, proyectos y cierres · `v0.9.0` catálogo y cotizaciones · `v0.10.0` fuente DENUE (paginación, filtros, score y avisos agrupados) · `v0.11.0` control de prospectos desde Telegram · `v0.12.0` seguimientos y resumen diario · `v0.13.0` plantillas de WhatsApp y correo · `v0.14.0` cotización pública con aceptar · `v0.15.0` asistente DENUE · `v0.16.0` mapa, ubicación y rutas · `v0.17.0` revisión del sitio web · **`v1.0.0`** primera versión estable · `v1.1.0` íconos Lucide y moneda MXN · `v1.2.0` propuesta por correo en Telegram · `v1.2.1` corrección del asistente DENUE · `v1.3.0` importar de Google Maps · `v1.4.0` seguridad y PWA (ver [CHANGELOG](CHANGELOG.md)).

@@ -9,7 +9,7 @@ import {
   STATUS_LABEL,
   type LeadStatus,
 } from "@/lib/constants";
-import { dateTime, dayLabel, firstName, greeting, money, pct, timeAgo, todayKey } from "@/lib/format";
+import { dateTime, dayLabel, firstName, greeting, money, nowMs, pct, timeAgo, todayKey } from "@/lib/format";
 import { buildInsights, type Insight } from "@/lib/insights";
 import { Card, CardHeader, EmptyState, MigrationNotice, StatCard, StatusBadge, isMissingColumn, isMissingTable } from "@/components/ui-kit";
 import { cn } from "@/lib/utils";
@@ -62,7 +62,7 @@ async function Overview() {
   const sources = sourcesRes.data ?? [];
   const runs = runsRes.data ?? [];
 
-  const now = Date.now();
+  const now = nowMs();
   const byStatus: Record<string, number> = {};
   for (const l of leads) byStatus[l.status] = (byStatus[l.status] ?? 0) + 1;
 

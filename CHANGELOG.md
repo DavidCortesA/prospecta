@@ -1,6 +1,13 @@
 # Changelog
 
-Cada versión tiene su tag en git (`v0.1.0` … `v1.3.0`).
+Cada versión tiene su tag en git (`v0.1.0` … `v1.4.0`).
+
+## 1.4.0: Seguridad y PWA
+- **Acceso:** migración `0013` con lista de usuarios autorizados (`app_users`). Antes, cualquiera que se registrara en Supabase habría leído y modificado todos los datos. Pantalla «Tu cuenta no tiene acceso» para cuentas no autorizadas. Ver `SECURITY.md`.
+- **Cabeceras:** CSP, `X-Frame-Options`, `nosniff`, `Referrer-Policy`, `Permissions-Policy`, COOP; la cotización pública sin Referer ni caché; sin `X-Powered-By`; `robots.txt` que bloquea buscadores.
+- **PWA:** favicon e ícono de Apple de la marca (antes era el logo de Next), manifest con `id`, categorías, atajos (Mapa, Prospectos, Nueva cotización) y orientación libre; service worker v2; botón «Instalar app» (con instrucciones para iPhone); márgenes seguros para celulares con notch.
+- **Corrección:** `/icon`, `/apple-icon` y `/robots.txt` redirigían al login estando sin sesión.
+- **Calidad:** ESLint en 0 errores; `shadcn` pasa a `devDependencies` (0 vulnerabilidades en producción); se quita `railway.json` (obsoleto; Railway detecta el Dockerfile).
 
 ## 1.3.0: Importar resultados de Google Maps (Apify)
 - `npm run import:apify -- <datasetId>` (en `apps/worker`) importa un dataset del Actor `compass/crawler-google-places` como prospectos: nombre, teléfono, dirección, coordenadas (salen en el mapa), giro y una nota con calificación, reseñas y si el perfil de Google está sin reclamar.

@@ -67,3 +67,6 @@ export type FollowupState = "overdue" | "today" | "later";
 export function followupState(key: string, today = todayKey()): FollowupState {
   return key < today ? "overdue" : key === today ? "today" : "later";
 }
+
+/** Hora actual en ms. Se usa en componentes de servidor que ya leyeron datos de la petición (no se prerenderizan). */
+export const nowMs = () => Date.now();

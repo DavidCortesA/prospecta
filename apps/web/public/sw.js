@@ -1,11 +1,11 @@
 // Service worker de Prospecta: solo cachea recursos estáticos y una pantalla offline.
 // Nunca cachea páginas autenticadas, Server Actions ni llamadas a Supabase.
-const VERSION = "v1";
+const VERSION = "v2";
 const STATIC_CACHE = `prospecta-static-${VERSION}`;
 const OFFLINE_URL = "/offline.html";
 
 self.addEventListener("install", (event) => {
-  event.waitUntil(caches.open(STATIC_CACHE).then((c) => c.addAll([OFFLINE_URL, "/icons/192"])));
+  event.waitUntil(caches.open(STATIC_CACHE).then((c) => c.addAll([OFFLINE_URL, "/icons/192", "/icons/512"])));
   self.skipWaiting();
 });
 

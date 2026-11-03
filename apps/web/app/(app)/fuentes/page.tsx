@@ -134,7 +134,7 @@ async function Sources({ searchParams }: { searchParams: PageProps<"/fuentes">["
             </select>
           </label>
           <label className="space-y-1.5">
-            <span className="text-xs font-semibold text-muted-foreground">Palabra clave (solo si eliges "Otro")</span>
+            <span className="text-xs font-semibold text-muted-foreground">Palabra clave (solo si eliges «Otro»)</span>
             <input name="keyword" placeholder="taller eléctrico, lavandería…" className={inputCls} />
           </label>
           <label className="space-y-1.5">

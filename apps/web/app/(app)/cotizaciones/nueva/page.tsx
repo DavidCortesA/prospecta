@@ -1,5 +1,6 @@
 import { Suspense } from "react";
 import { createClient } from "@/lib/server";
+import { nowMs } from "@/lib/format";
 import { MigrationNotice, PageHeader, isMissingTable } from "@/components/ui-kit";
 import { QuoteBuilder, type CatalogFeature } from "../quote-builder";
 
@@ -40,7 +41,7 @@ async function Builder({ searchParams }: { searchParams: PageProps<"/cotizacione
     if (data) who = { name: data.name, company: data.company ?? "", email: data.email ?? "" };
   }
 
-  const valid = new Date(Date.now() + 15 * 24 * 3600 * 1000).toISOString().slice(0, 10);
+  const valid = new Date(nowMs() + 15 * 24 * 3600 * 1000).toISOString().slice(0, 10);
 
   return (
     <QuoteBuilder

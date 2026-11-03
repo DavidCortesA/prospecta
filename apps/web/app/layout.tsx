@@ -14,13 +14,14 @@ export const metadata: Metadata = {
   description: "Captación y seguimiento de clientes",
   applicationName: "Prospecta",
   appleWebApp: { capable: true, title: "Prospecta", statusBarStyle: "black-translucent" },
-  icons: { apple: "/icons/192" },
+  other: { "mobile-web-app-capable": "yes" },
 };
 
 export const viewport: Viewport = {
   themeColor: "#0f1b2d",
   width: "device-width",
   initialScale: 1,
+  viewportFit: "cover", // usa toda la pantalla en celulares con notch
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

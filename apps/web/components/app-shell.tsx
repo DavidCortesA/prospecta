@@ -18,6 +18,7 @@ import {
   X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { InstallButton } from "@/components/install-button";
 
 const NAV = [
   { href: "/", label: "Resumen", icon: LayoutDashboard, group: "Vender" },
@@ -96,11 +97,12 @@ export function AppShell({ children, footer }: { children: ReactNode; footer: Re
         <Suspense fallback={<nav className="flex-1" />}>
           <NavList />
         </Suspense>
+        <InstallButton />
         <div className="border-t border-sidebar-border p-4">{footer}</div>
       </aside>
 
       {/* Barra superior móvil */}
-      <header className="no-print sticky top-0 z-30 flex items-center justify-between bg-sidebar px-4 py-3 text-sidebar-accent-foreground lg:hidden">
+      <header className="no-print sticky top-0 z-30 flex items-center justify-between bg-sidebar px-4 pb-3 pt-[max(0.75rem,env(safe-area-inset-top))] text-sidebar-accent-foreground lg:hidden">
         <div className="flex items-center gap-2.5">
           <span className="grid size-8 place-items-center rounded-lg bg-sidebar-primary font-extrabold text-sidebar-primary-foreground">
             P
@@ -126,12 +128,13 @@ export function AppShell({ children, footer }: { children: ReactNode; footer: Re
             <Suspense fallback={<nav className="flex-1" />}>
               <NavList onNavigate={() => setOpen(false)} />
             </Suspense>
-            <div className="border-t border-sidebar-border p-4">{footer}</div>
+            <InstallButton />
+            <div className="border-t border-sidebar-border p-4 pb-[max(1rem,env(safe-area-inset-bottom))]">{footer}</div>
           </div>
         </div>
       )}
 
-      <main className="min-w-0 px-4 py-6 sm:px-6 lg:px-10 lg:py-8 print:p-0">
+      <main className="min-w-0 px-4 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-6 sm:px-6 lg:px-10 lg:py-8 print:p-0">
         <div className="mx-auto max-w-6xl">{children}</div>
       </main>
     </div>

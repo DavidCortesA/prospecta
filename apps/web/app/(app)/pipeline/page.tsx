@@ -1,5 +1,6 @@
 import { Suspense } from "react";
 import { createClient } from "@/lib/server";
+import { nowMs } from "@/lib/format";
 import { PageHeader } from "@/components/ui-kit";
 import { Kanban, type KanbanLead } from "./kanban";
 
@@ -19,7 +20,7 @@ export default function Page() {
 async function Board() {
   const supabase = await createClient();
   // Los cerrados antiguos no se muestran para no saturar el tablero.
-  const since = new Date(Date.now() - 60 * 24 * 3600 * 1000).toISOString();
+  const since = new Date(nowMs() - 60 * 24 * 3600 * 1000).toISOString();
   const { data } = await supabase
     .from("leads")
     .select("id, name, company, score, status, deal_value, closed_at")

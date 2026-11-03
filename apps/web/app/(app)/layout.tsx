@@ -28,6 +28,30 @@ async function UserFooter() {
   );
 }
 
+/**
+ * Puerta de acceso: solo los usuarios de public.app_users (migración 0013) pueden ver datos.
+ * Aunque la base ya devuelve vacío a cualquier otra cuenta, aquí se avisa en lugar de mostrar pantallas vacías.
+ * Si la función aún no existe (migración sin aplicar) no se bloquea a nadie.
+ */
+async function AccessGate({ children }: { children: ReactNode }) {
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("is_app_user");
+  if (!error && data === false) {
+    return (
+      <div className="mx-auto mt-16 max-w-md rounded-2xl border bg-card p-8 text-center shadow-sm">
+        <h1 className="text-xl font-extrabold tracking-tight">Tu cuenta no tiene acceso</h1>
+        <p className="mt-2 text-sm text-muted-foreground">
+          Iniciaste sesión, pero esta cuenta no está autorizada en Prospecta. Pide a quien administra el sistema que te dé acceso.
+        </p>
+        <form action="/auth/signout" method="post" className="mt-5">
+          <button className="rounded-lg border px-4 py-2 text-sm font-semibold hover:bg-secondary">Cerrar sesión</button>
+        </form>
+      </div>
+    );
+  }
+  return <>{children}</>;
+}
+
 export default function AppLayout({ children }: { children: ReactNode }) {
   return (
     <AppShell
@@ -37,7 +61,9 @@ export default function AppLayout({ children }: { children: ReactNode }) {
         </Suspense>
       }
     >
-      {children}
+      <Suspense fallback={<div className="h-64 animate-pulse rounded-2xl bg-secondary" />}>
+        <AccessGate>{children}</AccessGate>
+      </Suspense>
     </AppShell>
   );
 }
