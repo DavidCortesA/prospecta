@@ -158,10 +158,25 @@ En el detalle de un prospecto con sitio web, **Revisar sitio** (o el botón 🔎
 
 Se crean desde **Fuentes → Asistente DENUE** (un giro necesita municipio: INEGI no permite buscar un giro en todo Nuevo León). Los giros con correo alto (dentistas, abogados, contadores) se prestan a la propuesta por correo; los de teléfono alto (salones, talleres) a WhatsApp.
 
+## Importar prospectos de Google Maps (Apify)
+
+Complemento de DENUE: giros que DENUE separa mal (constructoras, arquitectos, psicólogos, clínicas de estética…) y datos que solo da Google (calificación, reseñas, perfil sin reclamar).
+
+1. Corre el Actor [`compass/crawler-google-places`](https://apify.com/compass/crawler-google-places) en Apify y anota el *dataset id* de la corrida.
+2. Pon tu token de Apify en `apps/worker/.env` como `APIFY_TOKEN=` (Apify Console → Settings → Integrations; mejor un token de permisos limitados). **Solo local**: el archivo lo ignora git y no se sube a Railway ni a Vercel.
+3. Desde `apps/worker`:
+   ```bash
+   npm run import:apify -- <datasetId> --dry-run   # muestra qué entraría, sin escribir
+   npm run import:apify -- <datasetId>             # importa los «ideales»
+   ```
+   Opciones: `--all` (todos los abiertos con teléfono o correo) y `--source "Nombre"` (nombre de la fuente).
+
+Entran con la fuente «Google Maps (Apify)», sin duplicados por `placeId` ni por teléfono, con ubicación (salen en el mapa) y una nota en la bitácora con la calificación y las reseñas. Los datos de Google Maps tienen la fecha de la corrida: se envejecen, vuelve a correr el Actor de vez en cuando. Extraer datos de Google Maps tiene restricciones en los términos de Google; úsalo con criterio.
+
 ## Scraping responsable
 
 El colector web con Playwright solo corre si la fuente tiene `scraping_allowed = true` (revisaste sus términos de uso) **y** `robots.txt` permite la URL para el user-agent del bot. Solo extrae datos de contacto públicos (`mailto:` / `tel:`). Configura `USER_AGENT` con un contacto real.
 
 ## Versiones
 
-Se usan tags semánticos: `v0.1.0` base web + auth · `v0.2.0` esquema DB + Redis · `v0.3.0` worker · `v0.4.0` dashboard · `v0.5.0` despliegue (Dockerfile del worker + Railway/Vercel) · `v0.6.0` diseño, PWA y resumen · `v0.7.0` prospectos, pipeline y fuentes · `v0.8.0` clientes, proyectos y cierres · `v0.9.0` catálogo y cotizaciones · `v0.10.0` fuente DENUE (paginación, filtros, score y avisos agrupados) · `v0.11.0` control de prospectos desde Telegram · `v0.12.0` seguimientos y resumen diario · `v0.13.0` plantillas de WhatsApp y correo · `v0.14.0` cotización pública con aceptar · `v0.15.0` asistente DENUE · `v0.16.0` mapa, ubicación y rutas · `v0.17.0` revisión del sitio web · **`v1.0.0`** primera versión estable · `v1.1.0` íconos Lucide y moneda MXN · `v1.2.0` propuesta por correo en Telegram · `v1.2.1` corrección del asistente DENUE (ver [CHANGELOG](CHANGELOG.md)).
+Se usan tags semánticos: `v0.1.0` base web + auth · `v0.2.0` esquema DB + Redis · `v0.3.0` worker · `v0.4.0` dashboard · `v0.5.0` despliegue (Dockerfile del worker + Railway/Vercel) · `v0.6.0` diseño, PWA y resumen · `v0.7.0` prospectos, pipeline y fuentes · `v0.8.0` clientes, proyectos y cierres · `v0.9.0` catálogo y cotizaciones · `v0.10.0` fuente DENUE (paginación, filtros, score y avisos agrupados) · `v0.11.0` control de prospectos desde Telegram · `v0.12.0` seguimientos y resumen diario · `v0.13.0` plantillas de WhatsApp y correo · `v0.14.0` cotización pública con aceptar · `v0.15.0` asistente DENUE · `v0.16.0` mapa, ubicación y rutas · `v0.17.0` revisión del sitio web · **`v1.0.0`** primera versión estable · `v1.1.0` íconos Lucide y moneda MXN · `v1.2.0` propuesta por correo en Telegram · `v1.2.1` corrección del asistente DENUE · `v1.3.0` importar de Google Maps (ver [CHANGELOG](CHANGELOG.md)).

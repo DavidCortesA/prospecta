@@ -1,6 +1,11 @@
 # Changelog
 
-Cada versión tiene su tag en git (`v0.1.0` … `v1.2.1`).
+Cada versión tiene su tag en git (`v0.1.0` … `v1.3.0`).
+
+## 1.3.0: Importar resultados de Google Maps (Apify)
+- `npm run import:apify -- <datasetId>` (en `apps/worker`) importa un dataset del Actor `compass/crawler-google-places` como prospectos: nombre, teléfono, dirección, coordenadas (salen en el mapa), giro y una nota con calificación, reseñas y si el perfil de Google está sin reclamar.
+- Por defecto solo importa los «ideales» (con contacto, sin sitio web y abiertos); `--all` trae todos los abiertos con contacto; `--dry-run` muestra qué entraría sin escribir.
+- Evita duplicados por `placeId` y por teléfono; el score suma tracción por reseñas. El token (`APIFY_TOKEN`) vive solo en `apps/worker/.env`.
 
 ## 1.2.1: Corrección del asistente DENUE y guía de mercados
 - Corrección: INEGI responde 404 al pedir un **giro** en «todo Nuevo León»; el asistente ahora exige municipio para un giro (la palabra clave sí admite todo el estado).
