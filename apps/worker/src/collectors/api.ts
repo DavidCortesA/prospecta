@@ -1,10 +1,12 @@
 import type { CollectResult, LeadInput, Source } from "../db.js";
 import { config } from "../config.js";
+import { niceName } from "../messages.js";
 
 /**
  * Colector para APIs JSON. `source.config`:
  *  - itemsPath: ruta al arreglo dentro de la respuesta (vacío si la respuesta ya es un arreglo)
- *  - map: { name, company, email, phone, website, city, notes, external_id } -> rutas en cada item ("a.b.c")
+ *  - map: { name, company, email, phone, website, city, notes, external_id, lat, lng } -> rutas en cada item ("a.b.c").
+ *    `address` es una plantilla con campos entre llaves: "{Calle} {Num_Exterior}, {Colonia}"
  *  - filter: { requireAny: ["email","phone"], missing: ["website"] } sobre los campos ya mapeados
  *  - pageSize / cursor: paginación; la URL usa {{from}} y {{to}} y el cursor avanza solo en cada ejecución
  *  - headers: cabeceras extra
@@ -43,6 +45,25 @@ export async function collectApi(source: Source): Promise<CollectResult> {
 
   // Un campo que no está en `map` queda vacío (no se debe tomar el item completo).
   const field = (item: unknown, key: string) => (map[key] ? str(get(item, map[key])) : null);
+  const coord = (item: unknown, key: string, limit: number) => {
+    const n = Number(field(item, key));
+    return Number.isFinite(n) && n !== 0 && Math.abs(n) <= limit ? n : null;
+  };
+  const address = (item: unknown) => {
+    const tpl = map.address;
+    if (!tpl) return null;
+    const filled = tpl.replace(/\{(\w+)\}/g, (_, k: string) => str((item as Record<string, unknown>)?.[k]) ?? "");
+    const clean = filled
+      .replace(/\s+/g, " ")
+      .replace(/(\s*,)+/g, ",")
+      .replace(/,(?=\S)/g, ", ")
+      .replace(/^[,\s]+|[,\s]+$/g, "")
+      .replace(/,?\s*C\.P\.$/, "");
+    if (!clean) return null;
+    return niceName(clean)
+      .replace(/C\.p\./g, "C.P.")
+      .replace(/ (De|Del|La|Las|Los|El|Y) /g, (m) => m.toLowerCase());
+  };
 
   const leads = items
     .map(
@@ -55,6 +76,9 @@ export async function collectApi(source: Source): Promise<CollectResult> {
         city: field(item, "city"),
         notes: field(item, "notes"),
         external_id: field(item, "external_id"),
+        lat: coord(item, "lat", 90),
+        lng: coord(item, "lng", 180),
+        address: address(item),
         raw: item as Record<string, unknown>,
       })
     )

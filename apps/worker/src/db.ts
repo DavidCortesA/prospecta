@@ -25,6 +25,9 @@ export type LeadInput = {
   city?: string | null;
   notes?: string | null;
   score?: number;
+  lat?: number | null;
+  lng?: number | null;
+  address?: string | null;
   /** Id del registro en la fuente original (evita duplicados aunque no tenga correo ni sitio) */
   external_id?: string | null;
   raw?: Record<string, unknown>;

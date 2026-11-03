@@ -209,7 +209,18 @@ ${body}`, isDefault: t.is_default }];
               <Row label="Valor del trato" value={lead.deal_value != null ? money(lead.deal_value) : "—"} />
               <Row label="Cerrado" value={lead.closed_at ? dateTime(lead.closed_at) : "—"} />
               {lead.lost_reason && <Row label="Motivo" value={lead.lost_reason} />}
+              {lead.address && <Row label="Dirección" value={lead.address} />}
             </dl>
+            {lead.lat != null && lead.lng != null && (
+              <div className="flex gap-3 border-t px-5 py-3 text-xs font-semibold">
+                <a href={`https://www.google.com/maps/dir/?api=1&destination=${lead.lat},${lead.lng}`} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
+                  Cómo llegar
+                </a>
+                <Link href="/mapa" className="text-primary hover:underline">
+                  Ver en el mapa
+                </Link>
+              </div>
+            )}
           </Card>
 
           <form action={deleteLead.bind(null, lead.id)}>

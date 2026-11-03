@@ -1,6 +1,6 @@
 import { Worker } from "bullmq";
 import { COLLECT_QUEUE, connection, type CollectJob } from "./queues.js";
-import { db, type CollectResult, type Source } from "./db.js";
+import { db, type CollectResult, type LeadInput, type Source } from "./db.js";
 import { collectApi } from "./collectors/api.js";
 import { collectWeb } from "./collectors/web.js";
 import { leadScore } from "./score.js";
@@ -9,6 +9,17 @@ import { escapeHtml, notify } from "./telegram.js";
 
 /** Máximo de avisos individuales por ejecución; el resto se resume en un solo mensaje. */
 const MAX_INDIVIDUAL_NOTIFICATIONS = 5;
+
+const LEAD_SELECT = "id, name, company, email, phone, city, notes, status, next_followup, lat, lng, address";
+
+/** Un duplicado por id externo completa la ubicación del prospecto ya guardado (si aún no la tiene). */
+async function enrichExisting(sourceId: string, lead: LeadInput) {
+  if (!lead.external_id || (lead.lat == null && !lead.address)) return;
+  const patch: Record<string, unknown> = {};
+  if (lead.lat != null && lead.lng != null) Object.assign(patch, { lat: lead.lat, lng: lead.lng });
+  if (lead.address) patch.address = lead.address;
+  await db.from("leads").update(patch).eq("source_id", sourceId).eq("external_id", lead.external_id).is("lat", null);
+}
 
 async function collect(source: Source): Promise<CollectResult> {
   switch (source.kind) {
@@ -38,17 +49,25 @@ async function process(sourceId: string) {
 
     for (const lead of found) {
       const row: Record<string, unknown> = { ...lead, score: lead.score ?? leadScore(lead), source_id: source.id };
-      // Sin id externo no se envía la columna (así funciona aunque falte la migración 0006).
-      if (row.external_id == null) delete row.external_id;
+      // Las columnas opcionales solo se envían si traen dato (así no fallan si falta la migración correspondiente).
+      for (const key of ["external_id", "lat", "lng", "address"]) if (row[key] == null) delete row[key];
+
       // Se omiten duplicados (índices únicos por email / website / external_id).
-      const { data, error: insertError } = await db
-        .from("leads")
-        .insert(row)
-        .select("id, name, company, email, phone, city, notes, status")
-        .maybeSingle();
+      let { data, error: insertError } = await db.from("leads").insert(row).select(LEAD_SELECT).maybeSingle();
+
+      // Falta la migración 0010 (ubicación): se guarda el prospecto sin esos campos.
+      if (insertError && (insertError.code === "42703" || insertError.code === "PGRST204") && /lat|lng|address/.test(insertError.message)) {
+        delete row.lat;
+        delete row.lng;
+        delete row.address;
+        ({ data, error: insertError } = await db.from("leads").insert(row).select(LEAD_SELECT).maybeSingle());
+      }
 
       if (insertError) {
-        if (insertError.code === "23505") continue;
+        if (insertError.code === "23505") {
+          await enrichExisting(source.id, lead);
+          continue;
+        }
         throw insertError;
       }
       if (data) created.push(data as Lead);

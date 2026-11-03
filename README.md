@@ -116,10 +116,19 @@ En el detalle de cada cotización hay un **enlace para el cliente** (`/q/<token>
 - Las vistas previas de WhatsApp/Telegram no cuentan como "abrió", y el botón *Vista previa* del dashboard tampoco.
 - Una cotización vencida (`Válida hasta`) o rechazada no se puede aceptar.
 
+## Mapa y rutas de visita
+
+Las fuentes DENUE guardan la **dirección y las coordenadas** de cada negocio. En **Mapa** ves los prospectos como puntos de colores (por estado), filtras por zona o municipio, por estado, por «sin sitio web» o por seguimiento vencido, y abres el popup de cada uno con WhatsApp, ficha y «Cómo llegar».
+
+- **Planear ruta aquí:** toma hasta 9 prospectos abiertos de lo que ves en pantalla (los más cercanos al centro o a *Mi ubicación*), los ordena de cercano a cercano y abre la ruta en Google Maps.
+- Los avisos de Telegram traen la dirección y el botón **📍 Cómo llegar**.
+- Los prospectos que ya tenías se completan al pulsar **Reiniciar** y **Ejecutar ahora** en tu fuente DENUE: los duplicados por id solo actualizan la ubicación.
+- Mapa base de OpenStreetMap (uso ligero; si algún día lo usas mucho, cambia el proveedor de teselas).
+
 ## Scraping responsable
 
 El colector web con Playwright solo corre si la fuente tiene `scraping_allowed = true` (revisaste sus términos de uso) **y** `robots.txt` permite la URL para el user-agent del bot. Solo extrae datos de contacto públicos (`mailto:` / `tel:`). Configura `USER_AGENT` con un contacto real.
 
 ## Versiones
 
-Se usan tags semánticos: `v0.1.0` base web + auth · `v0.2.0` esquema DB + Redis · `v0.3.0` worker · `v0.4.0` dashboard · `v0.5.0` despliegue (Dockerfile del worker + Railway/Vercel) · `v0.6.0` diseño, PWA y resumen · `v0.7.0` prospectos, pipeline y fuentes · `v0.8.0` clientes, proyectos y cierres · `v0.9.0` catálogo y cotizaciones · `v0.10.0` fuente DENUE (paginación, filtros, score y avisos agrupados) · `v0.11.0` control de prospectos desde Telegram · `v0.12.0` seguimientos y resumen diario · `v0.13.0` plantillas de WhatsApp y correo · `v0.14.0` cotización pública con aceptar · `v0.15.0` asistente DENUE.
+Se usan tags semánticos: `v0.1.0` base web + auth · `v0.2.0` esquema DB + Redis · `v0.3.0` worker · `v0.4.0` dashboard · `v0.5.0` despliegue (Dockerfile del worker + Railway/Vercel) · `v0.6.0` diseño, PWA y resumen · `v0.7.0` prospectos, pipeline y fuentes · `v0.8.0` clientes, proyectos y cierres · `v0.9.0` catálogo y cotizaciones · `v0.10.0` fuente DENUE (paginación, filtros, score y avisos agrupados) · `v0.11.0` control de prospectos desde Telegram · `v0.12.0` seguimientos y resumen diario · `v0.13.0` plantillas de WhatsApp y correo · `v0.14.0` cotización pública con aceptar · `v0.15.0` asistente DENUE · `v0.16.0` mapa, ubicación y rutas.

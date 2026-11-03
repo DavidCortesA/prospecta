@@ -46,17 +46,23 @@ export type Lead = {
   notes: string | null;
   status: LeadStatus;
   next_followup: string | null;
+  lat: number | null;
+  lng: number | null;
+  address: string | null;
 };
 
-const LEAD_COLUMNS = "id, name, company, email, phone, city, notes, status, next_followup";
+const LEAD_COLUMNS = "id, name, company, email, phone, city, notes, status, next_followup, lat, lng, address";
 
-export function leadKeyboard(lead: Pick<Lead, "id">, waUrl?: string | null): Keyboard {
+export function leadKeyboard(lead: Pick<Lead, "id" | "lat" | "lng">, waUrl?: string | null): Keyboard {
   const b = (status: LeadStatus) => ({ text: `${STATUS_EMOJI[status]} ${STATUS_LABEL[status]}`, callback_data: `s:${lead.id}:${STATUS_TO_CODE[status]}` });
   const rows: Keyboard = [
     [b("contacted"), b("replied")],
     [b("qualified"), b("won")],
     [{ ...b("lost"), text: "❌ Rechazó" }, { text: "⏰ +3 días", callback_data: `f:${lead.id}:3` }],
   ];
+  if (lead.lat != null && lead.lng != null) {
+    rows.push([{ text: "📍 Cómo llegar", url: `https://www.google.com/maps/search/?api=1&query=${lead.lat},${lead.lng}` }]);
+  }
   if (waUrl) rows.push([{ text: "📲 Abrir WhatsApp con mensaje", url: waUrl }]);
   if (config.dashboardUrl) rows.push([{ text: "Abrir en el dashboard", url: `${config.dashboardUrl}/prospectos/${lead.id}` }]);
   return rows;
@@ -67,7 +73,7 @@ export function leadCard(lead: Lead, title = "Prospecto"): string {
     `<b>${escapeHtml(title)}</b>\n${escapeHtml(lead.name)}` +
     (lead.company && lead.company !== lead.name ? ` — ${escapeHtml(lead.company)}` : "") +
     (lead.notes ? `\n🏷️ ${escapeHtml(lead.notes.slice(0, 80))}` : "") +
-    (lead.city ? `\n📍 ${escapeHtml(lead.city)}` : "") +
+    (lead.address ? `\n🏠 ${escapeHtml(lead.address)}` : lead.city ? `\n📍 ${escapeHtml(lead.city)}` : "") +
     (lead.phone ? `\n📞 ${escapeHtml(lead.phone)}` : "") +
     (lead.email ? `\n✉️ ${escapeHtml(lead.email)}` : "")
   );
