@@ -4,6 +4,7 @@ import { db, type CollectResult, type Source } from "./db.js";
 import { collectApi } from "./collectors/api.js";
 import { collectWeb } from "./collectors/web.js";
 import { leadScore } from "./score.js";
+import { sendLeadCard, type Lead } from "./leads.js";
 import { escapeHtml, notify } from "./telegram.js";
 
 /** Máximo de avisos individuales por ejecución; el resto se resume en un solo mensaje. */
@@ -20,8 +21,6 @@ async function collect(source: Source): Promise<CollectResult> {
   }
 }
 
-type Inserted = { name: string; company: string | null; email: string | null; phone: string | null; city: string | null; notes: string | null };
-
 async function process(sourceId: string) {
   const { data: source, error } = await db.from("sources").select("*").eq("id", sourceId).single<Source>();
   if (error || !source) throw new Error(`Fuente ${sourceId} no encontrada`);
@@ -35,7 +34,7 @@ async function process(sourceId: string) {
 
   try {
     const { leads: found, nextConfig } = await collect(source);
-    const created: Inserted[] = [];
+    const created: Lead[] = [];
 
     for (const lead of found) {
       const row: Record<string, unknown> = { ...lead, score: lead.score ?? leadScore(lead), source_id: source.id };
@@ -45,14 +44,14 @@ async function process(sourceId: string) {
       const { data, error: insertError } = await db
         .from("leads")
         .insert(row)
-        .select("name, company, email, phone, city, notes")
+        .select("id, name, company, email, phone, city, notes, status")
         .maybeSingle();
 
       if (insertError) {
         if (insertError.code === "23505") continue;
         throw insertError;
       }
-      if (data) created.push(data as Inserted);
+      if (data) created.push(data as Lead);
     }
 
     const patch: Record<string, unknown> = { last_run_at: new Date().toISOString() };
@@ -76,21 +75,14 @@ async function process(sourceId: string) {
   }
 }
 
-async function announce(sourceName: string, created: Inserted[]) {
-  for (const l of created.slice(0, MAX_INDIVIDUAL_NOTIFICATIONS)) {
-    await notify(
-      `🆕 <b>Nuevo prospecto</b>\n${escapeHtml(l.name)}` +
-        (l.company && l.company !== l.name ? ` — ${escapeHtml(l.company)}` : "") +
-        (l.notes ? `\n🏷️ ${escapeHtml(l.notes.slice(0, 80))}` : "") +
-        (l.city ? `\n📍 ${escapeHtml(l.city)}` : "") +
-        (l.phone ? `\n📞 ${escapeHtml(l.phone)}` : "") +
-        (l.email ? `\n✉️ ${escapeHtml(l.email)}` : "") +
-        `\nFuente: ${escapeHtml(sourceName)}`
-    );
+async function announce(sourceName: string, created: Lead[]) {
+  for (const lead of created.slice(0, MAX_INDIVIDUAL_NOTIFICATIONS)) {
+    await sendLeadCard(lead, "Nuevo prospecto", `
+Fuente: ${escapeHtml(sourceName)}`);
   }
   const rest = created.length - MAX_INDIVIDUAL_NOTIFICATIONS;
   if (rest > 0) {
-    await notify(`➕ ${rest} prospectos más de <b>${escapeHtml(sourceName)}</b>. Míralos en el dashboard.`);
+    await notify(`➕ ${rest} prospectos más de <b>${escapeHtml(sourceName)}</b>. Escribe /pendientes o míralos en el dashboard.`);
   }
 }
 

@@ -75,10 +75,25 @@ Cada ejecución trae la siguiente página de `pageSize` registros (el cursor ava
 
 Respeta la ley de datos personales (LFPDPPP): contacta negocios con fines comerciales legítimos y atiende cualquier solicitud de no contacto.
 
+## Controlar los prospectos desde Telegram
+
+Cada aviso de prospecto trae botones (✅ Contactado · 💬 Respondió · ⭐ Calificado · 🏆 Ganado · ❌ Rechazó) y un enlace al dashboard. También puedes **responder al aviso** con una palabra clave:
+
+| Escribe | Efecto |
+| --- | --- |
+| `contactado` · `respondió` · `calificado` | Cambia el estado |
+| `ganado 5000` | Gana el prospecto (valor opcional) y crea cliente y proyecto |
+| `rechazó precio alto` | Lo marca perdido con motivo opcional |
+| `nota llamar el lunes` | Guarda una nota en la bitácora |
+
+Sin responder a un aviso, escribe la palabra y el nombre: `contactado Pérez`. Comandos: `/pendientes`, `/buscar nombre`, `/resumen`, `/ayuda`.
+
+El bot solo atiende al chat configurado en `TELEGRAM_CHAT_ID`. Variable opcional del worker: `DASHBOARD_URL` (agrega el botón "Abrir en el dashboard").
+
 ## Scraping responsable
 
 El colector web con Playwright solo corre si la fuente tiene `scraping_allowed = true` (revisaste sus términos de uso) **y** `robots.txt` permite la URL para el user-agent del bot. Solo extrae datos de contacto públicos (`mailto:` / `tel:`). Configura `USER_AGENT` con un contacto real.
 
 ## Versiones
 
-Se usan tags semánticos: `v0.1.0` base web + auth · `v0.2.0` esquema DB + Redis · `v0.3.0` worker · `v0.4.0` dashboard · `v0.5.0` despliegue (Dockerfile del worker + Railway/Vercel) · `v0.6.0` diseño, PWA y resumen · `v0.7.0` prospectos, pipeline y fuentes · `v0.8.0` clientes, proyectos y cierres · `v0.9.0` catálogo y cotizaciones · `v0.10.0` fuente DENUE (paginación, filtros, score y avisos agrupados).
+Se usan tags semánticos: `v0.1.0` base web + auth · `v0.2.0` esquema DB + Redis · `v0.3.0` worker · `v0.4.0` dashboard · `v0.5.0` despliegue (Dockerfile del worker + Railway/Vercel) · `v0.6.0` diseño, PWA y resumen · `v0.7.0` prospectos, pipeline y fuentes · `v0.8.0` clientes, proyectos y cierres · `v0.9.0` catálogo y cotizaciones · `v0.10.0` fuente DENUE (paginación, filtros, score y avisos agrupados) · `v0.11.0` control de prospectos desde Telegram.

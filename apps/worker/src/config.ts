@@ -13,4 +13,6 @@ export const config = {
   telegramToken: process.env.TELEGRAM_BOT_TOKEN,
   telegramChatId: process.env.TELEGRAM_CHAT_ID,
   userAgent: process.env.USER_AGENT ?? "ProspectaBot/0.3",
+  /** URL pública del dashboard (opcional): agrega un botón "Abrir en el dashboard" a los avisos */
+  dashboardUrl: process.env.DASHBOARD_URL?.replace(/\/$/, ""),
 };
