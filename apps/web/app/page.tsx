@@ -1,69 +1,173 @@
-import Image from "next/image";
+import { Suspense } from "react";
+import { createClient } from "@/lib/server";
 
-export default function Home() {
+const STATUS_LABEL: Record<string, string> = {
+  new: "Nuevo",
+  contacted: "Contactado",
+  replied: "Respondió",
+  qualified: "Calificado",
+  won: "Ganado",
+  lost: "Perdido",
+};
+
+const STATUS_STYLE: Record<string, string> = {
+  new: "bg-blue-100 text-blue-800",
+  contacted: "bg-amber-100 text-amber-800",
+  replied: "bg-violet-100 text-violet-800",
+  qualified: "bg-emerald-100 text-emerald-800",
+  won: "bg-green-200 text-green-900",
+  lost: "bg-zinc-200 text-zinc-700",
+};
+
+const fmt = (iso?: string | null) =>
+  iso ? new Date(iso).toLocaleString("es", { dateStyle: "short", timeStyle: "short" }) : "—";
+
+export default function Page() {
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert h-5 w-[100px]"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the{" "}
-            <code className="rounded bg-black/[.06] px-1.5 py-0.5 font-mono text-[0.9em] dark:bg-white/[.08]">
-              page.tsx
-            </code>{" "}
-            file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
+    <Suspense fallback={<p className="p-6 text-zinc-500">Cargando…</p>}>
+      <Dashboard />
+    </Suspense>
+  );
+}
+
+async function Dashboard() {
+  const supabase = await createClient();
+
+  const since = new Date(Date.now() - 7 * 24 * 3600 * 1000).toISOString();
+  const [leads, total, week, sources, runs] = await Promise.all([
+    supabase
+      .from("leads")
+      .select("id, name, company, email, phone, status, score, created_at, sources(name)")
+      .order("created_at", { ascending: false })
+      .limit(25),
+    supabase.from("leads").select("*", { count: "exact", head: true }),
+    supabase.from("leads").select("*", { count: "exact", head: true }).gte("created_at", since),
+    supabase.from("sources").select("id, name, kind, enabled, scraping_allowed, cron, last_run_at"),
+    supabase
+      .from("job_runs")
+      .select("id, status, found, inserted, error, started_at, sources(name)")
+      .order("started_at", { ascending: false })
+      .limit(8),
+  ]);
+
+  const byStatus = (leads.data ?? []).reduce<Record<string, number>>((acc, l) => {
+    acc[l.status] = (acc[l.status] ?? 0) + 1;
+    return acc;
+  }, {});
+
+  const stats = [
+    { label: "Prospectos totales", value: total.count ?? 0 },
+    { label: "Últimos 7 días", value: week.count ?? 0 },
+    { label: "Fuentes activas", value: (sources.data ?? []).filter((s) => s.enabled).length },
+    { label: "Calificados (recientes)", value: byStatus.qualified ?? 0 },
+  ];
+
+  return (
+    <main className="mx-auto max-w-6xl space-y-8 p-6">
+      <header className="flex items-center justify-between">
+        <h1 className="text-2xl font-semibold">Prospecta</h1>
+        <form action="/auth/signout" method="post">
+          <button className="text-sm text-zinc-500 hover:underline">Salir</button>
+        </form>
+      </header>
+
+      <section className="grid grid-cols-2 gap-4 md:grid-cols-4">
+        {stats.map((s) => (
+          <div key={s.label} className="rounded-lg border p-4">
+            <p className="text-sm text-zinc-500">{s.label}</p>
+            <p className="mt-1 text-3xl font-semibold">{s.value}</p>
+          </div>
+        ))}
+      </section>
+
+      <section>
+        <h2 className="mb-3 text-lg font-medium">Prospectos recientes</h2>
+        <div className="overflow-x-auto rounded-lg border">
+          <table className="w-full text-left text-sm">
+            <thead className="bg-zinc-50 text-zinc-500">
+              <tr>
+                <th className="p-3">Nombre</th>
+                <th className="p-3">Contacto</th>
+                <th className="p-3">Fuente</th>
+                <th className="p-3">Estado</th>
+                <th className="p-3">Score</th>
+                <th className="p-3">Creado</th>
+              </tr>
+            </thead>
+            <tbody>
+              {(leads.data ?? []).map((l) => (
+                <tr key={l.id} className="border-t">
+                  <td className="p-3">
+                    <div className="font-medium">{l.name}</div>
+                    {l.company && <div className="text-zinc-500">{l.company}</div>}
+                  </td>
+                  <td className="p-3">
+                    <div>{l.email ?? "—"}</div>
+                    <div className="text-zinc-500">{l.phone ?? ""}</div>
+                  </td>
+                  <td className="p-3">{(l.sources as { name?: string } | null)?.name ?? "—"}</td>
+                  <td className="p-3">
+                    <span className={`rounded-full px-2 py-0.5 text-xs ${STATUS_STYLE[l.status]}`}>
+                      {STATUS_LABEL[l.status] ?? l.status}
+                    </span>
+                  </td>
+                  <td className="p-3">{l.score}</td>
+                  <td className="p-3">{fmt(l.created_at)}</td>
+                </tr>
+              ))}
+              {!leads.data?.length && (
+                <tr>
+                  <td colSpan={6} className="p-6 text-center text-zinc-500">
+                    Aún no hay prospectos. Agrega una fuente y el worker los traerá.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert h-[14px] w-4"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={14}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
-    </div>
+      </section>
+
+      <div className="grid gap-8 md:grid-cols-2">
+        <section>
+          <h2 className="mb-3 text-lg font-medium">Fuentes</h2>
+          <ul className="divide-y rounded-lg border">
+            {(sources.data ?? []).map((s) => (
+              <li key={s.id} className="flex items-center justify-between p-3 text-sm">
+                <div>
+                  <div className="font-medium">{s.name}</div>
+                  <div className="text-zinc-500">
+                    {s.kind} · {s.cron ?? "sin cron"} · última: {fmt(s.last_run_at)}
+                  </div>
+                </div>
+                <span className="text-xs text-zinc-500">
+                  {s.enabled ? "activa" : "pausada"}
+                  {s.kind === "web" && !s.scraping_allowed ? " · scraping no autorizado" : ""}
+                </span>
+              </li>
+            ))}
+            {!sources.data?.length && <li className="p-4 text-sm text-zinc-500">Sin fuentes.</li>}
+          </ul>
+        </section>
+
+        <section>
+          <h2 className="mb-3 text-lg font-medium">Últimas ejecuciones</h2>
+          <ul className="divide-y rounded-lg border">
+            {(runs.data ?? []).map((r) => (
+              <li key={r.id} className="p-3 text-sm">
+                <div className="flex justify-between">
+                  <span className="font-medium">{(r.sources as { name?: string } | null)?.name ?? "—"}</span>
+                  <span className={r.status === "failed" ? "text-red-600" : "text-zinc-500"}>{r.status}</span>
+                </div>
+                <div className="text-zinc-500">
+                  {fmt(r.started_at)} · {r.inserted}/{r.found} nuevos
+                </div>
+                {r.error && <div className="text-red-600">{r.error}</div>}
+              </li>
+            ))}
+            {!runs.data?.length && <li className="p-4 text-sm text-zinc-500">Sin ejecuciones.</li>}
+          </ul>
+        </section>
+      </div>
+    </main>
   );
 }
