@@ -139,6 +139,10 @@ export function MigrationNotice({ file }: { file: string }) {
 export const isMissingTable = (error: { code?: string } | null | undefined) =>
   error?.code === "PGRST205" || error?.code === "42P01";
 
+/** Columna que aún no existe porque falta ejecutar una migración. */
+export const isMissingColumn = (error: { code?: string } | null | undefined) =>
+  error?.code === "42703" || error?.code === "PGRST204";
+
 export function TableShell({ children }: { children: ReactNode }) {
   return <div className="overflow-x-auto">{children}</div>;
 }

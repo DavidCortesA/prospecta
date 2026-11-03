@@ -4,10 +4,10 @@ import { notFound } from "next/navigation";
 import { ArrowLeft, FileText, Trophy, XCircle } from "lucide-react";
 import { createClient } from "@/lib/server";
 import { LEAD_STATUSES, STATUS_LABEL, type LeadStatus } from "@/lib/constants";
-import { dateTime, money, timeAgo } from "@/lib/format";
+import { dateTime, dayLabel, followupState, money, timeAgo, todayKey } from "@/lib/format";
 import { Card, CardHeader, LinkButton, StatusBadge, btn, inputCls } from "@/components/ui-kit";
 import { LeadFields } from "../lead-fields";
-import { addNote, changeStatusForm, deleteLead, updateLead } from "../actions";
+import { addNote, changeStatusForm, clearFollowup, deleteLead, setFollowupForm, snoozeFollowup, updateLead } from "../actions";
 
 export default function Page(props: PageProps<"/prospectos/[id]">) {
   return (
@@ -133,6 +133,40 @@ async function Detail({
                   {status === "lost" ? "Ya está perdido" : "Marcar como perdido"}
                 </button>
               </form>
+            </div>
+          </Card>
+
+          <Card>
+            <CardHeader title="Seguimiento" hint="Cuándo volver a contactarlo" />
+            <div className="space-y-3 p-5">
+              {lead.next_followup ? (
+                <p className={`text-sm font-semibold ${followupState(lead.next_followup) === "overdue" ? "text-rose-600" : followupState(lead.next_followup) === "today" ? "text-amber-600" : ""}`}>
+                  {followupState(lead.next_followup) === "overdue" ? "Vencido · " : followupState(lead.next_followup) === "today" ? "Hoy · " : "Programado · "}
+                  {dayLabel(lead.next_followup)}
+                </p>
+              ) : (
+                <p className="text-sm text-muted-foreground">Sin seguimiento programado.</p>
+              )}
+              {open && (
+                <>
+                  <div className="flex flex-wrap gap-2">
+                    {[[1, "Mañana"], [3, "En 3 días"], [7, "En 1 semana"]].map(([d, label]) => (
+                      <form key={d} action={snoozeFollowup.bind(null, lead.id, d as number)}>
+                        <button className={`${btn.outline} px-3 py-1.5 text-xs`}>{label}</button>
+                      </form>
+                    ))}
+                  </div>
+                  <form action={setFollowupForm.bind(null, lead.id)} className="flex gap-2">
+                    <input name="date" type="date" min={todayKey()} defaultValue={lead.next_followup ?? ""} className={inputCls} aria-label="Fecha de seguimiento" />
+                    <button className={btn.outline}>Fijar</button>
+                  </form>
+                  {lead.next_followup && (
+                    <form action={clearFollowup.bind(null, lead.id)}>
+                      <button className="text-xs font-semibold text-muted-foreground hover:underline">Quitar seguimiento</button>
+                    </form>
+                  )}
+                </>
+              )}
             </div>
           </Card>
 

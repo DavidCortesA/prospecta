@@ -13,6 +13,10 @@ export const config = {
   telegramToken: process.env.TELEGRAM_BOT_TOKEN,
   telegramChatId: process.env.TELEGRAM_CHAT_ID,
   userAgent: process.env.USER_AGENT ?? "ProspectaBot/0.3",
+  /** Zona horaria para "hoy", el resumen diario y los saludos */
+  timezone: process.env.APP_TZ ?? "America/Mexico_City",
+  /** Cron del resumen diario de Telegram (por defecto, todos los días a las 9:00) */
+  digestCron: process.env.DIGEST_CRON ?? "0 9 * * *",
   /** URL pública del dashboard (opcional): agrega un botón "Abrir en el dashboard" a los avisos */
   dashboardUrl: process.env.DASHBOARD_URL?.replace(/\/$/, ""),
 };

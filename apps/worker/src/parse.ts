@@ -3,7 +3,8 @@ import type { LeadStatus } from "./leads.js";
 export type Parsed =
   | { kind: "command"; name: string; rest: string }
   | { kind: "status"; status: LeadStatus; rest: string }
-  | { kind: "note"; rest: string };
+  | { kind: "note"; rest: string }
+  | { kind: "followup"; days: number; rest: string };
 
 /** Palabras clave (sin acentos, en minúsculas) -> estado. */
 const KEYWORDS: Record<string, LeadStatus> = {
@@ -26,11 +27,30 @@ const KEYWORDS: Record<string, LeadStatus> = {
   nointeresa: "lost",
 };
 
+const FOLLOWUP_WORDS = new Set(["recordar", "recuerdame", "seguimiento", "agendar", "posponer"]);
+const DAY_WORDS: Record<string, number> = { hoy: 0, manana: 1, semana: 7, quincena: 15, mes: 30 };
+const FILLER = new Set(["dias", "dia", "en", "a", "de", "para", "el", "la"]);
+
+/** "recordar 3 dias Pérez" -> { days: 3, rest: "Pérez" }; sin número se asume 3 días. */
+export function parseFollowup(rest: string): { days: number; rest: string } {
+  const tokens = rest.split(/\s+/).filter(Boolean);
+  let days: number | null = null;
+  const kept: string[] = [];
+  for (const t of tokens) {
+    const n = normalize(t).replace(/[^a-z0-9]/g, "");
+    if (days === null && /^\d+$/.test(n)) days = Math.min(365, Number(n));
+    else if (days === null && n in DAY_WORDS) days = DAY_WORDS[n];
+    else if (FILLER.has(n) && kept.length === 0) continue;
+    else kept.push(t);
+  }
+  return { days: days ?? 3, rest: kept.join(" ").trim() };
+}
+
 export const normalize = (s: string) =>
   s
     .toLowerCase()
     .normalize("NFD")
-    .replace(/[̀-ͯ]/g, "");
+    .replace(/[\u0300-\u036f]/g, "");
 
 /**
  * Entiende:  /pendientes · /buscar ana · contactado · rechazó precio alto · ganado 5000 · nota llamar el lunes
@@ -50,6 +70,7 @@ export function parseMessage(raw: string): Parsed | null {
   // "contacté a Pérez" / "ganado con Pérez": se quita la palabra de enlace para buscar por nombre
   const rest = tail.join(" ").replace(/^(a|al|con)\s+/i, "").trim();
 
+  if (FOLLOWUP_WORDS.has(word)) return { kind: "followup", ...parseFollowup(tail.join(" ")) };
   if (word === "nota") return { kind: "note", rest: tail.join(" ").trim() };
   // "no interesa" son dos palabras
   if (word === "no" && normalize(tail[0] ?? "").startsWith("interes")) {

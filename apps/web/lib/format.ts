@@ -40,3 +40,21 @@ export function greeting(date = new Date()): string {
   if (hour < 19) return "Buenas tardes";
   return "Buenas noches";
 }
+
+/** Fecha de hoy (AAAA-MM-DD) en la zona horaria de la app. */
+export const todayKey = () => new Intl.DateTimeFormat("en-CA", { timeZone: APP_TZ }).format(new Date());
+
+export function addDays(key: string, n: number): string {
+  const d = new Date(`${key}T12:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + n);
+  return d.toISOString().slice(0, 10);
+}
+
+/** "2026-11-06" -> "6 nov" */
+export const dayLabel = (key?: string | null) =>
+  key ? new Intl.DateTimeFormat("es", { day: "numeric", month: "short", timeZone: "UTC" }).format(new Date(`${key}T12:00:00Z`)) : "—";
+
+export type FollowupState = "overdue" | "today" | "later";
+export function followupState(key: string, today = todayKey()): FollowupState {
+  return key < today ? "overdue" : key === today ? "today" : "later";
+}

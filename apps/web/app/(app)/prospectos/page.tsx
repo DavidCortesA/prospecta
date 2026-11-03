@@ -3,8 +3,8 @@ import Link from "next/link";
 import { Plus, Search } from "lucide-react";
 import { createClient } from "@/lib/server";
 import { LEAD_STATUSES, STATUS_LABEL, type LeadStatus } from "@/lib/constants";
-import { dateShort, timeAgo } from "@/lib/format";
-import { Card, EmptyState, LinkButton, PageHeader, StatusBadge, TableShell, btn, inputCls } from "@/components/ui-kit";
+import { dateShort, dayLabel, followupState, timeAgo, todayKey } from "@/lib/format";
+import { Card, EmptyState, LinkButton, MigrationNotice, PageHeader, StatusBadge, TableShell, btn, inputCls, isMissingColumn } from "@/components/ui-kit";
 import { cn } from "@/lib/utils";
 
 export const metadata = { title: "Prospectos" };
@@ -35,24 +35,30 @@ async function List({ searchParams }: { searchParams: PageProps<"/prospectos">["
   const q = typeof sp.q === "string" ? sp.q.trim() : "";
   const status = typeof sp.status === "string" && (LEAD_STATUSES as readonly string[]).includes(sp.status) ? sp.status : "";
   const page = Math.max(1, Number(typeof sp.page === "string" ? sp.page : 1) || 1);
+  const due = sp.due === "1";
+  const today = todayKey();
 
   const supabase = await createClient();
 
   let query = supabase
     .from("leads")
-    .select("id, name, company, email, phone, city, status, score, deal_value, created_at, sources(name)", { count: "exact" })
+    .select("id, name, company, email, phone, city, status, score, deal_value, next_followup, created_at, sources(name)", { count: "exact" })
     .order("created_at", { ascending: false })
     .range((page - 1) * PAGE_SIZE, page * PAGE_SIZE - 1);
   if (status) query = query.eq("status", status);
+  if (due) query = query.lte("next_followup", today).not("status", "in", "(won,lost)");
   if (q) {
     const term = q.replace(/[%,()]/g, " ");
     query = query.or(`name.ilike.%${term}%,company.ilike.%${term}%,email.ilike.%${term}%,phone.ilike.%${term}%`);
   }
 
-  const [{ data: leads, count }, { data: all }] = await Promise.all([
+  const [{ data: leads, count, error: listError }, { data: all }, { count: dueCount }] = await Promise.all([
     query,
     supabase.from("leads").select("status").limit(5000),
+    supabase.from("leads").select("*", { count: "exact", head: true }).lte("next_followup", today).not("status", "in", "(won,lost)"),
   ]);
+
+  if (isMissingColumn(listError)) return <MigrationNotice file="0007_followups.sql" />;
 
   const counts: Record<string, number> = {};
   for (const l of all ?? []) counts[l.status] = (counts[l.status] ?? 0) + 1;
@@ -61,7 +67,7 @@ async function List({ searchParams }: { searchParams: PageProps<"/prospectos">["
 
   const href = (patch: Record<string, string | number>) => {
     const p = new URLSearchParams();
-    const merged = { q, status, page: 1, ...patch };
+    const merged = { q, status, due: due ? "1" : "", page: 1, ...patch };
     for (const [k, v] of Object.entries(merged)) if (v !== "" && !(k === "page" && v === 1)) p.set(k, String(v));
     const s = p.toString();
     return s ? `/prospectos?${s}` : "/prospectos";
@@ -70,11 +76,14 @@ async function List({ searchParams }: { searchParams: PageProps<"/prospectos">["
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-2">
-        <Link href={href({ status: "" })} className={chip(!status)}>
+        <Link href={href({ status: "", due: "" })} className={chip(!status && !due)}>
           Todos <span className="opacity-60">{totalAll}</span>
         </Link>
+        <Link href={href({ status: "", due: "1" })} className={chip(due)}>
+          ⏰ Por seguir <span className="opacity-60">{dueCount ?? 0}</span>
+        </Link>
         {LEAD_STATUSES.map((s) => (
-          <Link key={s} href={href({ status: s })} className={chip(status === s)}>
+          <Link key={s} href={href({ status: s, due: "" })} className={chip(status === s)}>
             {STATUS_LABEL[s as LeadStatus]} <span className="opacity-60">{counts[s] ?? 0}</span>
           </Link>
         ))}
@@ -97,6 +106,7 @@ async function List({ searchParams }: { searchParams: PageProps<"/prospectos">["
                   <th className="hidden px-3 py-3 font-semibold md:table-cell">Fuente</th>
                   <th className="px-3 py-3 font-semibold">Estado</th>
                   <th className="hidden px-3 py-3 font-semibold sm:table-cell">Score</th>
+                  <th className="hidden px-3 py-3 font-semibold md:table-cell">Seguimiento</th>
                   <th className="hidden px-3 py-3 font-semibold lg:table-cell">Creado</th>
                 </tr>
               </thead>
@@ -120,6 +130,16 @@ async function List({ searchParams }: { searchParams: PageProps<"/prospectos">["
                       <StatusBadge status={l.status} />
                     </td>
                     <td className="hidden px-3 py-3 font-semibold sm:table-cell">{l.score}</td>
+                    <td className="hidden px-3 py-3 md:table-cell">
+                      {l.next_followup ? (
+                        <span className={followupState(l.next_followup, today) === "overdue" ? "font-semibold text-rose-600" : followupState(l.next_followup, today) === "today" ? "font-semibold text-amber-600" : "text-muted-foreground"}>
+                          {followupState(l.next_followup, today) === "overdue" ? "Vencido · " : ""}
+                          {dayLabel(l.next_followup)}
+                        </span>
+                      ) : (
+                        <span className="text-muted-foreground">—</span>
+                      )}
+                    </td>
                     <td className="hidden px-3 py-3 text-muted-foreground lg:table-cell" title={dateShort(l.created_at)}>
                       {timeAgo(l.created_at)}
                     </td>

@@ -1,5 +1,6 @@
 import { config } from "./config.js";
 import { db } from "./db.js";
+import { addDays, dayLabel, todayKey } from "./dates.js";
 import { connection } from "./queues.js";
 import { escapeHtml, notify, type Keyboard } from "./telegram.js";
 
@@ -43,13 +44,18 @@ export type Lead = {
   city: string | null;
   notes: string | null;
   status: LeadStatus;
+  next_followup: string | null;
 };
 
-const LEAD_COLUMNS = "id, name, company, email, phone, city, notes, status";
+const LEAD_COLUMNS = "id, name, company, email, phone, city, notes, status, next_followup";
 
 export function leadKeyboard(lead: Pick<Lead, "id">): Keyboard {
   const b = (status: LeadStatus) => ({ text: `${STATUS_EMOJI[status]} ${STATUS_LABEL[status]}`, callback_data: `s:${lead.id}:${STATUS_TO_CODE[status]}` });
-  const rows: Keyboard = [[b("contacted"), b("replied")], [b("qualified"), b("won")], [{ ...b("lost"), text: "❌ Rechazó" }]];
+  const rows: Keyboard = [
+    [b("contacted"), b("replied")],
+    [b("qualified"), b("won")],
+    [{ ...b("lost"), text: "❌ Rechazó" }, { text: "⏰ +3 días", callback_data: `f:${lead.id}:3` }],
+  ];
   if (config.dashboardUrl) rows.push([{ text: "Abrir en el dashboard", url: `${config.dashboardUrl}/prospectos/${lead.id}` }]);
   return rows;
 }
@@ -68,8 +74,11 @@ export function leadCard(lead: Lead, title = "Prospecto"): string {
 const MESSAGE_TTL = 60 * 60 * 24 * 30;
 
 /** Envía la ficha con botones y recuerda qué prospecto es, para poder responderle con palabras clave. */
+export const statusLine = (status: LeadStatus) => `Estado: ${STATUS_EMOJI[status]} ${STATUS_LABEL[status]}`;
+export const followupLine = (date: string | null) => (date ? `📅 Seguimiento: ${dayLabel(date)}` : null);
+
 export async function sendLeadCard(lead: Lead, title: string, extra = ""): Promise<void> {
-  const text = `${leadCard(lead, title)}${extra}\nEstado: ${STATUS_EMOJI[lead.status]} ${STATUS_LABEL[lead.status]}`;
+  const text = [`${leadCard(lead, title)}${extra}`, statusLine(lead.status), followupLine(lead.next_followup)].filter(Boolean).join("\n");
   const messageId = await notify(text, leadKeyboard(lead));
   if (messageId) await connection.set(`tg:msg:${messageId}`, lead.id, "EX", MESSAGE_TTL);
 }
@@ -151,4 +160,32 @@ async function ensureClientFromLead(leadId: string): Promise<void> {
   if (project) {
     await db.from("project_milestones").insert(DEFAULT_MILESTONES.map((title, position) => ({ project_id: project.id, title, position })));
   }
+}
+
+/** Agenda el seguimiento dentro de N días (o lo quita con null). Devuelve la fecha fijada. */
+export async function setFollowupIn(id: string, days: number | null): Promise<string | null | undefined> {
+  const date = days === null ? null : addDays(todayKey(), days);
+  const { error } = await db.from("leads").update({ next_followup: date }).eq("id", id);
+  if (error) {
+    console.error("setFollowupIn:", error.message);
+    return undefined;
+  }
+  return date;
+}
+
+/** Prospectos abiertos con seguimiento de hoy o vencido, del más atrasado al más reciente. */
+export async function dueFollowups(limit = 50): Promise<Lead[]> {
+  const { data } = await db
+    .from("leads")
+    .select(LEAD_COLUMNS)
+    .lte("next_followup", todayKey())
+    .not("status", "in", "(won,lost)")
+    .order("next_followup", { ascending: true })
+    .limit(limit);
+  return (data as Lead[] | null) ?? [];
+}
+
+export async function countByStatus(status: LeadStatus): Promise<number> {
+  const { count } = await db.from("leads").select("*", { count: "exact", head: true }).eq("status", status);
+  return count ?? 0;
 }

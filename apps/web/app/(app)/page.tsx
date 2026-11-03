@@ -9,9 +9,9 @@ import {
   STATUS_LABEL,
   type LeadStatus,
 } from "@/lib/constants";
-import { dateTime, firstName, greeting, money, pct, timeAgo } from "@/lib/format";
+import { dateTime, dayLabel, firstName, greeting, money, pct, timeAgo, todayKey } from "@/lib/format";
 import { buildInsights, type Insight } from "@/lib/insights";
-import { Card, CardHeader, EmptyState, StatCard, StatusBadge, isMissingTable } from "@/components/ui-kit";
+import { Card, CardHeader, EmptyState, MigrationNotice, StatCard, StatusBadge, isMissingColumn, isMissingTable } from "@/components/ui-kit";
 import { cn } from "@/lib/utils";
 
 export const metadata = { title: "Resumen" };
@@ -34,7 +34,7 @@ async function Overview() {
   const [leadsRes, sourcesRes, runsRes, quotesRes, projectsRes] = await Promise.all([
     supabase
       .from("leads")
-      .select("id, name, company, status, score, created_at, updated_at, source_id")
+      .select("id, name, company, status, score, created_at, updated_at, source_id, next_followup")
       .order("created_at", { ascending: false })
       .limit(5000),
     supabase.from("sources").select("id, name, enabled"),
@@ -56,6 +56,8 @@ async function Overview() {
     );
   }
 
+  if (isMissingColumn(leadsRes.error)) return <MigrationNotice file="0007_followups.sql" />;
+
   const leads = leadsRes.data ?? [];
   const sources = sourcesRes.data ?? [];
   const runs = runsRes.data ?? [];
@@ -70,6 +72,11 @@ async function Overview() {
     return age >= 7 * DAY && age < 14 * DAY;
   }).length;
   const staleContacted = leads.filter((l) => l.status === "contacted" && now - +new Date(l.updated_at) > 5 * DAY).length;
+  const today = todayKey();
+  const followups = leads
+    .filter((l) => l.next_followup && l.next_followup <= today && !["won", "lost"].includes(l.status))
+    .sort((a, b) => (a.next_followup! < b.next_followup! ? -1 : 1));
+  const followupsOverdue = followups.filter((l) => l.next_followup! < today).length;
   const closed = (byStatus.won ?? 0) + (byStatus.lost ?? 0);
   const closeRate = closed ? pct(byStatus.won ?? 0, closed) : null;
   const failedRuns24h = runs.filter((r) => r.status === "failed" && now - +new Date(r.started_at) < DAY).length;
@@ -90,6 +97,8 @@ async function Overview() {
     thisWeek,
     lastWeek,
     staleContacted,
+    followupsDue: followups.length,
+    followupsOverdue,
     closeRate,
     failedRuns24h,
     activeSources: sources.filter((s) => s.enabled).length,
@@ -221,7 +230,35 @@ async function Overview() {
       </div>
 
       <div className="grid gap-6 lg:grid-cols-5">
-        <Card className="lg:col-span-3">
+        <div className="space-y-6 lg:col-span-3">
+        {followups.length > 0 && (
+          <Card>
+            <CardHeader
+              title="Seguimientos de hoy"
+              hint={`${followups.length} por contactar${followupsOverdue ? ` · ${followupsOverdue} vencidos` : ""}`}
+              action={<Link href="/prospectos?due=1" className="text-xs font-semibold text-primary hover:underline">Ver todos</Link>}
+            />
+            <ul className="divide-y">
+              {followups.slice(0, 6).map((l) => (
+                <li key={l.id}>
+                  <Link href={`/prospectos/${l.id}`} className="flex items-center justify-between gap-3 px-5 py-3 transition hover:bg-secondary/60">
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-semibold">{l.name}</p>
+                      <p className="truncate text-xs text-muted-foreground">{l.company ?? "Sin empresa"}</p>
+                    </div>
+                    <div className="flex shrink-0 items-center gap-3">
+                      <span className={cn("text-xs font-semibold", l.next_followup! < today ? "text-rose-600" : "text-amber-600")}>
+                        {l.next_followup! < today ? `Vencido · ${dayLabel(l.next_followup)}` : "Hoy"}
+                      </span>
+                      <StatusBadge status={l.status} />
+                    </div>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </Card>
+        )}
+        <Card>
           <CardHeader
             title="Para atender primero"
             hint="Nuevos, con respuesta o calificados, por score"
@@ -248,6 +285,7 @@ async function Overview() {
             <EmptyState title="Nada pendiente" text="Cuando el bot traiga prospectos aparecerán aquí." />
           )}
         </Card>
+        </div>
 
         <div className="space-y-6 lg:col-span-2">
           <Card>

@@ -6,6 +6,8 @@ export type OverviewStats = {
   thisWeek: number;
   lastWeek: number;
   staleContacted: number; // contactados sin movimiento > 5 días
+  followupsDue?: number; // seguimientos de hoy o vencidos
+  followupsOverdue?: number;
   closeRate: number | null; // % ganados sobre cerrados
   failedRuns24h: number;
   activeSources: number;
@@ -27,6 +29,15 @@ export function buildInsights(s: OverviewStats): Insight[] {
     out.push({
       tone: "warn",
       text: `${s.failedRuns24h} ${s.failedRuns24h === 1 ? "ejecución falló" : "ejecuciones fallaron"} en las últimas 24 h. Revisa Fuentes para ver el error.`,
+    });
+  }
+  if (s.followupsDue) {
+    const overdue = s.followupsOverdue ?? 0;
+    out.push({
+      tone: "warn",
+      text:
+        `Tienes ${s.followupsDue} ${s.followupsDue === 1 ? "seguimiento" : "seguimientos"} para hoy` +
+        (overdue ? `, ${overdue} ya ${overdue === 1 ? "vencido" : "vencidos"}.` : "."),
     });
   }
   if (n("new") > 0) {

@@ -15,7 +15,7 @@ Bot de captación de clientes con dashboard.
 ## Puesta en marcha
 
 1. **Base de datos**: en el SQL Editor de Supabase ejecuta, en orden, los archivos de `supabase/migrations/`:
-   `0001_init` → `0002_lead_management` → `0003_clients_projects` → `0004_catalog_quotes` (y, opcional, `0005_seed_features_example` con features de ejemplo). Crea un usuario en Authentication → Users.
+   `0001_init` → `0002_lead_management` → `0003_clients_projects` → `0004_catalog_quotes` → `0006_lead_external_id` → `0007_followups` (y, opcional, `0005_seed_features_example` con features de ejemplo). Crea un usuario en Authentication → Users.
 2. **Redis**: `docker compose up -d`
 3. **Web**: copia `apps/web/.env.example` a `.env.local`, completa los valores y ejecuta
    ```bash
@@ -90,10 +90,17 @@ Sin responder a un aviso, escribe la palabra y el nombre: `contactado Pérez`. C
 
 El bot solo atiende al chat configurado en `TELEGRAM_CHAT_ID`. Variable opcional del worker: `DASHBOARD_URL` (agrega el botón "Abrir en el dashboard").
 
+## Seguimientos y resumen diario
+
+- Cada prospecto tiene una **fecha de seguimiento** (detalle del prospecto, botón ⏰ en Telegram o la palabra `recordar 3`). Al marcarlo **Contactado** se agenda solo en 3 días; al cerrarlo (ganado/perdido) se borra. Lo hace un trigger en la base de datos, así que el dashboard y Telegram se comportan igual.
+- En Prospectos hay un filtro **⏰ Por seguir** y el Resumen muestra "Seguimientos de hoy".
+- Cada mañana (por defecto 9:00, hora de `APP_TZ`) el bot manda el resumen del día: seguimientos, prospectos sin contactar y cotizaciones esperando respuesta, con botones. `/seguimientos` lo pide en cualquier momento.
+- Variables opcionales del worker: `APP_TZ` (por defecto `America/Mexico_City`) y `DIGEST_CRON` (por defecto `0 9 * * *`).
+
 ## Scraping responsable
 
 El colector web con Playwright solo corre si la fuente tiene `scraping_allowed = true` (revisaste sus términos de uso) **y** `robots.txt` permite la URL para el user-agent del bot. Solo extrae datos de contacto públicos (`mailto:` / `tel:`). Configura `USER_AGENT` con un contacto real.
 
 ## Versiones
 
-Se usan tags semánticos: `v0.1.0` base web + auth · `v0.2.0` esquema DB + Redis · `v0.3.0` worker · `v0.4.0` dashboard · `v0.5.0` despliegue (Dockerfile del worker + Railway/Vercel) · `v0.6.0` diseño, PWA y resumen · `v0.7.0` prospectos, pipeline y fuentes · `v0.8.0` clientes, proyectos y cierres · `v0.9.0` catálogo y cotizaciones · `v0.10.0` fuente DENUE (paginación, filtros, score y avisos agrupados) · `v0.11.0` control de prospectos desde Telegram.
+Se usan tags semánticos: `v0.1.0` base web + auth · `v0.2.0` esquema DB + Redis · `v0.3.0` worker · `v0.4.0` dashboard · `v0.5.0` despliegue (Dockerfile del worker + Railway/Vercel) · `v0.6.0` diseño, PWA y resumen · `v0.7.0` prospectos, pipeline y fuentes · `v0.8.0` clientes, proyectos y cierres · `v0.9.0` catálogo y cotizaciones · `v0.10.0` fuente DENUE (paginación, filtros, score y avisos agrupados) · `v0.11.0` control de prospectos desde Telegram · `v0.12.0` seguimientos y resumen diario.

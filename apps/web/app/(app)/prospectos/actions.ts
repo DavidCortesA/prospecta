@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { requireUser } from "@/lib/auth";
 import { LEAD_STATUSES, type LeadStatus } from "@/lib/constants";
 import { ensureClientFromLead } from "@/lib/clients";
+import { addDays, todayKey } from "@/lib/format";
 
 const text = (fd: FormData, key: string) => {
   const v = fd.get(key);
@@ -93,4 +94,26 @@ export async function deleteLead(id: string) {
   if (error) throw new Error(error.message);
   revalidatePath("/", "layout");
   redirect("/prospectos");
+}
+
+/** Fija (o quita, con null) la fecha del próximo seguimiento. */
+export async function setFollowup(id: string, date: string | null) {
+  const { supabase } = await requireUser();
+  if (date !== null && !/^\d{4}-\d{2}-\d{2}$/.test(date)) throw new Error("Fecha inválida");
+  const { error } = await supabase.from("leads").update({ next_followup: date }).eq("id", id);
+  if (error) throw new Error(error.message);
+  revalidatePath("/", "layout");
+}
+
+export async function setFollowupForm(id: string, formData: FormData) {
+  await setFollowup(id, text(formData, "date"));
+}
+
+/** Agenda el seguimiento dentro de N días a partir de hoy. */
+export async function snoozeFollowup(id: string, days: number) {
+  await setFollowup(id, addDays(todayKey(), days));
+}
+
+export async function clearFollowup(id: string) {
+  await setFollowup(id, null);
 }
