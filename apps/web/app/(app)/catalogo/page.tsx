@@ -28,7 +28,7 @@ function FeatureForm({ action, f, submit }: { action: (fd: FormData) => Promise<
     <form action={action} className="grid gap-3 sm:grid-cols-2">
       <input name="name" required defaultValue={f?.name} placeholder="Nombre *" className={inputCls} />
       <input name="category" list="categories" defaultValue={f?.category ?? "General"} placeholder="Categoría" className={inputCls} />
-      <input name="price" type="number" step="0.01" min={0} required defaultValue={f?.price ?? ""} placeholder="Precio (USD u otra moneda)" className={inputCls} />
+      <input name="price" type="number" step="0.01" min={0} required defaultValue={f?.price ?? ""} placeholder="Precio en pesos (MXN)" className={inputCls} />
       <input name="hours" type="number" step="0.5" min={0} defaultValue={f?.hours ?? ""} placeholder="Horas estimadas (opcional)" className={inputCls} />
       <textarea name="description" rows={2} defaultValue={f?.description ?? ""} placeholder="Descripción que verá el cliente" className={`${inputCls} sm:col-span-2`} />
       <div className="sm:col-span-2">

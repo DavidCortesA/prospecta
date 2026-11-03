@@ -44,7 +44,6 @@ type PublicQuoteData = {
   number: number;
   title: string;
   status: "draft" | "sent" | "accepted" | "rejected";
-  currency: string;
   discount_pct: number;
   tax_pct: number;
   valid_until: string | null;
@@ -114,7 +113,7 @@ async function PublicQuote({
               <div>
                 <h2 className="text-lg font-extrabold tracking-tight">¿Todo bien con la cotización?</h2>
                 <p className="mt-1 text-sm text-muted-foreground">
-                  Al aceptar, avisamos a {businessName} para comenzar. Total: <strong>{money(total, quote.currency)}</strong>
+                  Al aceptar, avisamos a {businessName} para comenzar. Total: <strong>{money(total)}</strong>
                   {quote.valid_until ? ` · válida hasta el ${new Intl.DateTimeFormat("es", { dateStyle: "long", timeZone: "UTC" }).format(new Date(`${quote.valid_until}T12:00:00Z`))}` : ""}.
                 </p>
               </div>

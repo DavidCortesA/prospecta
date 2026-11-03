@@ -4,7 +4,6 @@ import { businessName, calcTotals, quoteNumber } from "@/lib/quotes";
 export type QuoteDoc = {
   number: number;
   title: string;
-  currency: string;
   discount_pct: number | string;
   tax_pct: number | string;
   valid_until: string | null;
@@ -71,8 +70,8 @@ export function QuoteDocument({ quote: q, items }: { quote: QuoteDoc; items: Quo
                 {i.description && <p className="mt-0.5 text-xs text-muted-foreground">{i.description}</p>}
               </td>
               <td className="py-3 text-center">{i.qty}</td>
-              <td className="py-3 text-right">{money(i.unit_price, q.currency)}</td>
-              <td className="py-3 text-right font-semibold">{money(i.qty * i.unit_price, q.currency)}</td>
+              <td className="py-3 text-right">{money(i.unit_price)}</td>
+              <td className="py-3 text-right font-semibold">{money(i.qty * i.unit_price)}</td>
             </tr>
           ))}
         </tbody>
@@ -81,23 +80,23 @@ export function QuoteDocument({ quote: q, items }: { quote: QuoteDoc; items: Quo
       <dl className="ml-auto mt-6 w-full max-w-xs space-y-1.5 text-sm">
         <div className="flex justify-between">
           <dt className="text-muted-foreground">Subtotal</dt>
-          <dd className="font-semibold">{money(t.subtotal, q.currency)}</dd>
+          <dd className="font-semibold">{money(t.subtotal)}</dd>
         </div>
         {t.discount > 0 && (
           <div className="flex justify-between">
             <dt className="text-muted-foreground">Descuento ({Number(q.discount_pct)}%)</dt>
-            <dd className="font-semibold">− {money(t.discount, q.currency)}</dd>
+            <dd className="font-semibold">− {money(t.discount)}</dd>
           </div>
         )}
         {t.tax > 0 && (
           <div className="flex justify-between">
             <dt className="text-muted-foreground">Impuesto ({Number(q.tax_pct)}%)</dt>
-            <dd className="font-semibold">{money(t.tax, q.currency)}</dd>
+            <dd className="font-semibold">{money(t.tax)}</dd>
           </div>
         )}
         <div className="flex items-baseline justify-between border-t pt-3">
           <dt className="font-bold">Total</dt>
-          <dd className="text-2xl font-extrabold">{money(t.total, q.currency)}</dd>
+          <dd className="text-2xl font-extrabold">{money(t.total)}</dd>
         </div>
       </dl>
 

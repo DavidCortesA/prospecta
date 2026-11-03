@@ -1,10 +1,19 @@
 import { APP_TZ } from "./constants";
 
-export const money = (n: number | null | undefined, currency = "USD") =>
-  new Intl.NumberFormat("es", { style: "currency", currency, maximumFractionDigits: 2 }).format(n ?? 0);
+/** Todo el sistema trabaja en pesos mexicanos: $1,500.00 */
+export const money = (n: number | null | undefined) =>
+  new Intl.NumberFormat("es-MX", { style: "currency", currency: "MXN" }).format(n ?? 0);
 
-export const dateShort = (iso?: string | null) =>
-  iso ? new Intl.DateTimeFormat("es", { dateStyle: "medium", timeZone: APP_TZ }).format(new Date(iso)) : "—";
+const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/;
+
+/** Las fechas sin hora (columnas `date`: vigencia, inicio/entrega) se muestran tal cual, sin correrlas por la zona horaria. */
+export const dateShort = (iso?: string | null) => {
+  if (!iso) return "—";
+  if (DATE_ONLY.test(iso)) {
+    return new Intl.DateTimeFormat("es", { dateStyle: "medium", timeZone: "UTC" }).format(new Date(`${iso}T12:00:00Z`));
+  }
+  return new Intl.DateTimeFormat("es", { dateStyle: "medium", timeZone: APP_TZ }).format(new Date(iso));
+};
 
 export const dateTime = (iso?: string | null) =>
   iso

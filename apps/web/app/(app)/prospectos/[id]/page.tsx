@@ -1,7 +1,7 @@
 import { Suspense } from "react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, FileText, Trophy, XCircle } from "lucide-react";
+import { ArrowLeft, ArrowRightLeft, FileText, Mail, MessageCircle, Sparkles, StickyNote, Trophy, XCircle, type LucideIcon } from "lucide-react";
 import { createClient } from "@/lib/server";
 import { LEAD_STATUSES, STATUS_LABEL, type LeadStatus } from "@/lib/constants";
 import { dateTime, dayLabel, followupState, money, timeAgo, todayKey } from "@/lib/format";
@@ -112,9 +112,19 @@ ${body}`, isDefault: t.is_default }];
             </form>
             <ul className="divide-y">
               {(events ?? []).map((e) => (
-                <li key={e.id} className="px-5 py-3 text-sm">
-                  <p>{describe(e)}</p>
-                  <p className="text-xs text-muted-foreground">{dateTime(e.created_at)}</p>
+                <li key={e.id} className="flex gap-3 px-5 py-3 text-sm">
+                  {(() => {
+                    const { Icon, text } = describe(e);
+                    return (
+                      <>
+                        <Icon className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
+                        <div className="min-w-0">
+                          <p>{text}</p>
+                          <p className="text-xs text-muted-foreground">{dateTime(e.created_at)}</p>
+                        </div>
+                      </>
+                    );
+                  })()}
                 </li>
               ))}
               {!events?.length && <li className="px-5 py-6 text-center text-sm text-muted-foreground">Sin movimientos todavía.</li>}
@@ -247,14 +257,17 @@ function Row({ label, value }: { label: string; value: string }) {
   );
 }
 
-function describe(e: { type: string; payload: Record<string, unknown> }) {
-  if (e.type === "created") return "Prospecto creado";
-  if (e.type === "note") return `📝 ${String(e.payload.text ?? "")}`;
-  if (e.type === "contact") return `📲 Contactado por ${e.payload.channel === "email" ? "correo" : "WhatsApp"} (${String(e.payload.template ?? "plantilla")})`;
+function describe(e: { type: string; payload: Record<string, unknown> }): { Icon: LucideIcon; text: string } {
+  if (e.type === "created") return { Icon: Sparkles, text: "Prospecto creado" };
+  if (e.type === "note") return { Icon: StickyNote, text: String(e.payload.text ?? "") };
+  if (e.type === "contact") {
+    const email = e.payload.channel === "email";
+    return { Icon: email ? Mail : MessageCircle, text: `Contactado por ${email ? "correo" : "WhatsApp"} (${String(e.payload.template ?? "plantilla")})` };
+  }
   if (e.type === "status_change") {
     const from = STATUS_LABEL[e.payload.from as LeadStatus] ?? String(e.payload.from);
     const to = STATUS_LABEL[e.payload.to as LeadStatus] ?? String(e.payload.to);
-    return `Cambió de ${from} a ${to}`;
+    return { Icon: ArrowRightLeft, text: `Cambió de ${from} a ${to}` };
   }
-  return e.type;
+  return { Icon: StickyNote, text: e.type };
 }

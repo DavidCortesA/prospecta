@@ -61,4 +61,3 @@ export const QUOTE_TONE: Record<QuoteStatus, string> = {
   rejected: "bg-rose-100 text-rose-800 ring-rose-200",
 };
 
-export const CURRENCIES = ["USD", "MXN", "COP", "EUR"] as const;

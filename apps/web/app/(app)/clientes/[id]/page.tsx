@@ -3,7 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft, Check, FileText, Plus, Trash2 } from "lucide-react";
 import { createClient } from "@/lib/server";
-import { CURRENCIES, PROJECT_LABEL, PROJECT_STATUSES, QUOTE_LABEL, QUOTE_TONE, type ProjectStatus, type QuoteStatus } from "@/lib/constants";
+import { PROJECT_LABEL, PROJECT_STATUSES, QUOTE_LABEL, QUOTE_TONE, type ProjectStatus, type QuoteStatus } from "@/lib/constants";
 import { dateShort, money, pct } from "@/lib/format";
 import { Badge, Card, CardHeader, LinkButton, Progress, btn, inputCls } from "@/components/ui-kit";
 import { cn } from "@/lib/utils";
@@ -40,7 +40,7 @@ async function Detail({ params }: { params: PageProps<"/clientes/[id]">["params"
       .eq("client_id", id)
       .order("created_at", { ascending: false }),
     // La tabla de cotizaciones llega en una migración posterior; si no existe se ignora.
-    supabase.from("quotes").select("id, number, title, status, currency, created_at, quote_items(qty, unit_price)").eq("client_id", id).order("created_at", { ascending: false }),
+    supabase.from("quotes").select("id, number, title, status, created_at, quote_items(qty, unit_price)").eq("client_id", id).order("created_at", { ascending: false }),
   ]);
   if (!client) notFound();
 
@@ -81,7 +81,7 @@ async function Detail({ params }: { params: PageProps<"/clientes/[id]">["params"
                   <div className="min-w-0">
                     <h2 className="truncate text-lg font-bold">{p.name}</h2>
                     <p className="text-xs text-muted-foreground">
-                      {p.budget != null ? money(p.budget, p.currency) : "Sin presupuesto"}
+                      {p.budget != null ? money(p.budget) : "Sin presupuesto"}
                       {p.due_date ? ` · entrega ${dateShort(p.due_date)}` : ""}
                     </p>
                   </div>
@@ -164,11 +164,6 @@ async function Detail({ params }: { params: PageProps<"/clientes/[id]">["params"
             <form action={createProject.bind(null, client.id)} className="grid gap-3 border-t p-5 sm:grid-cols-2">
               <input name="name" required placeholder="Nombre del proyecto *" className={`${inputCls} sm:col-span-2`} />
               <input name="budget" type="number" step="0.01" min={0} placeholder="Presupuesto" className={inputCls} />
-              <select name="currency" className={inputCls}>
-                {CURRENCIES.map((c) => (
-                  <option key={c}>{c}</option>
-                ))}
-              </select>
               <input name="start_date" type="date" className={inputCls} aria-label="Inicio" />
               <input name="due_date" type="date" className={inputCls} aria-label="Entrega" />
               <p className="text-xs text-muted-foreground sm:col-span-2">Se crea con 5 hitos base que puedes editar.</p>
@@ -204,7 +199,7 @@ async function Detail({ params }: { params: PageProps<"/clientes/[id]">["params"
                       <Link href={`/cotizaciones/${q.id}`} className="flex items-center justify-between gap-2 px-5 py-3 text-sm hover:bg-secondary/60">
                         <span className="min-w-0">
                           <span className="block truncate font-semibold">COT-{String(q.number).padStart(4, "0")} · {q.title}</span>
-                          <span className="text-xs text-muted-foreground">{money(total, q.currency)}</span>
+                          <span className="text-xs text-muted-foreground">{money(total)}</span>
                         </span>
                         <Badge className={QUOTE_TONE[q.status as QuoteStatus]}>{QUOTE_LABEL[q.status as QuoteStatus]}</Badge>
                       </Link>

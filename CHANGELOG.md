@@ -2,6 +2,12 @@
 
 Cada versión tiene su tag en git (`v0.1.0` … `v1.0.0`).
 
+## 1.1.0: Íconos Lucide y todo en pesos (MXN)
+- Los emojis usados como íconos en la web se reemplazaron por íconos de [Lucide](https://lucide.dev) (bitácora, cotizaciones, filtros, revisión del sitio y popup del mapa). Los mensajes de Telegram conservan emojis, porque Telegram no muestra íconos SVG.
+- Moneda fija en **MXN** con formato mexicano (`$1,500.00`): se quitaron los selectores de moneda de cotizaciones y proyectos; el bot y el dashboard muestran siempre pesos. Migración `0012` (valor por defecto MXN).
+- Corrección: las fechas sin hora (vigencia de cotización, inicio y entrega de proyectos) se mostraban un día antes por la zona horaria.
+- El ejemplo de catálogo (`0005`) usa precios de muestra en pesos.
+
 ## 1.0.0
 
 Primera versión estable. Sin cambios de código respecto a 0.17.0: se fijan las versiones de `apps/web` y `apps/worker` en 1.0.0 y se documenta el historial.

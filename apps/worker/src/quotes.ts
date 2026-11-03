@@ -5,7 +5,8 @@ import { escapeHtml, notify, type Keyboard } from "./telegram.js";
 
 type Item = { qty: number; unit_price: number };
 
-const money = (n: number, currency: string) => new Intl.NumberFormat("es", { style: "currency", currency }).format(n);
+// Todo el sistema trabaja en pesos mexicanos: $1,500.00
+const money = (n: number) => new Intl.NumberFormat("es-MX", { style: "currency", currency: "MXN" }).format(n);
 const quoteNumber = (n: number) => `COT-${String(n).padStart(4, "0")}`;
 
 function total(items: Item[], discountPct: number, taxPct: number) {
@@ -26,7 +27,7 @@ const dashboardButton = (quoteId: string): Keyboard | undefined =>
 export async function pollQuoteEvents(): Promise<void> {
   const { data: accepted, error } = await db
     .from("quotes")
-    .select("id, number, title, currency, discount_pct, tax_pct, lead_id, customer_name, accepted_name, client_comment, quote_items(qty, unit_price)")
+    .select("id, number, title, discount_pct, tax_pct, lead_id, customer_name, accepted_name, client_comment, quote_items(qty, unit_price)")
     .not("accepted_at", "is", null)
     .is("accepted_notified_at", null)
     .limit(10);
@@ -56,7 +57,7 @@ export async function pollQuoteEvents(): Promise<void> {
 
     await notify(
       `🎉 <b>${escapeHtml(q.accepted_name ?? q.customer_name)}</b> aceptó la cotización ${quoteNumber(q.number)}\n` +
-        `${escapeHtml(q.title)} · <b>${escapeHtml(money(amount, q.currency))}</b>` +
+        `${escapeHtml(q.title)} · <b>${escapeHtml(money(amount))}</b>` +
         (q.client_comment ? `\n💬 “${escapeHtml(q.client_comment)}”` : "") +
         followUp,
       dashboardButton(q.id)

@@ -164,7 +164,7 @@ async function ensureClientFromLead(leadId: string): Promise<void> {
 
   const { data: project } = await db
     .from("projects")
-    .insert({ client_id: client.id, name: `Proyecto ${lead.company ?? lead.name}`, budget: lead.deal_value, currency: "USD" })
+    .insert({ client_id: client.id, name: `Proyecto ${lead.company ?? lead.name}`, budget: lead.deal_value, currency: "MXN" })
     .select("id")
     .single();
   if (project) {

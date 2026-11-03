@@ -1,6 +1,6 @@
 import { Suspense } from "react";
 import Link from "next/link";
-import { Plus, Search } from "lucide-react";
+import { AlarmClock, Plus, Search } from "lucide-react";
 import { createClient } from "@/lib/server";
 import { LEAD_STATUSES, STATUS_LABEL, type LeadStatus } from "@/lib/constants";
 import { dateShort, dayLabel, followupState, timeAgo, todayKey } from "@/lib/format";
@@ -80,7 +80,7 @@ async function List({ searchParams }: { searchParams: PageProps<"/prospectos">["
           Todos <span className="opacity-60">{totalAll}</span>
         </Link>
         <Link href={href({ status: "", due: "1" })} className={chip(due)}>
-          ⏰ Por seguir <span className="opacity-60">{dueCount ?? 0}</span>
+          <AlarmClock className="size-3.5" /> Por seguir <span className="opacity-60">{dueCount ?? 0}</span>
         </Link>
         {LEAD_STATUSES.map((s) => (
           <Link key={s} href={href({ status: s, due: "" })} className={chip(status === s)}>
@@ -174,6 +174,6 @@ async function List({ searchParams }: { searchParams: PageProps<"/prospectos">["
 
 const chip = (active: boolean) =>
   cn(
-    "rounded-full px-3.5 py-1.5 text-xs font-semibold ring-1 ring-inset transition",
+    "inline-flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-semibold ring-1 ring-inset transition",
     active ? "bg-sidebar text-sidebar-accent-foreground ring-sidebar" : "bg-card text-muted-foreground ring-border hover:text-foreground"
   );

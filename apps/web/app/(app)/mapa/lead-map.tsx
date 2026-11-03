@@ -3,7 +3,9 @@
 import "leaflet/dist/leaflet.css";
 import L from "leaflet";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Crosshair, Route as RouteIcon } from "lucide-react";
+import { flushSync } from "react-dom";
+import { createRoot, type Root } from "react-dom/client";
+import { Crosshair, FileText, MapPin, MessageCircle, Navigation, Phone, Route as RouteIcon } from "lucide-react";
 import { LEAD_STATUSES, STATUS_LABEL, type LeadStatus } from "@/lib/constants";
 import { cityName, whatsappNumber } from "@/lib/templates";
 import { btn, inputCls } from "@/components/ui-kit";
@@ -38,25 +40,49 @@ const OPEN: LeadStatus[] = ["new", "contacted", "replied", "qualified"];
 
 const MONTERREY: L.LatLngTuple = [25.6866, -100.3161];
 
-const esc = (s: string) => s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
 const gmapsDir = (lat: number, lng: number) => `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`;
 
-function popupHtml(l: MapLead) {
+/** Contenido del popup de un punto. Es React (los textos se escapan solos) con íconos Lucide. */
+function LeadPopup({ l }: { l: MapLead }) {
   const wa = whatsappNumber(l.phone);
-  const link = "color:#0f766e;font-weight:600;text-decoration:none";
-  return `
-    <div style="min-width:200px;font-family:inherit">
-      <div style="font-weight:700;font-size:14px;line-height:1.3">${esc(l.name)}</div>
-      ${l.company && l.company !== l.name ? `<div style="font-size:12px;color:#64748b">${esc(l.company)}</div>` : ""}
-      <div style="margin:6px 0;font-size:12px"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${COLORS[l.status]};margin-right:6px"></span>${STATUS_LABEL[l.status]} · score ${l.score}</div>
-      ${l.address ? `<div style="font-size:12px;margin-bottom:4px">🏠 ${esc(l.address)}</div>` : ""}
-      ${l.phone ? `<div style="font-size:12px;margin-bottom:6px">📞 ${esc(l.phone)}</div>` : ""}
-      <div style="display:flex;gap:10px;flex-wrap:wrap;font-size:12px">
-        <a style="${link}" href="/prospectos/${l.id}">Abrir ficha</a>
-        ${wa ? `<a style="${link}" target="_blank" rel="noopener" href="https://wa.me/${wa}">WhatsApp</a>` : ""}
-        <a style="${link}" target="_blank" rel="noopener" href="${gmapsDir(l.lat, l.lng)}">Cómo llegar</a>
+  // Leaflet pinta de azul los <a> dentro del mapa; se fuerza el color de la marca
+  const link = { color: "var(--primary)" };
+  const row = "mb-1 flex gap-1.5 text-xs";
+  return (
+    <div className="min-w-52 font-sans">
+      <div className="text-sm font-bold leading-snug">{l.name}</div>
+      {l.company && l.company !== l.name && <div className="text-xs text-muted-foreground">{l.company}</div>}
+      <div className="my-1.5 flex items-center gap-1.5 text-xs">
+        <span className="size-2 rounded-full" style={{ background: COLORS[l.status] }} />
+        {STATUS_LABEL[l.status]} · score {l.score}
       </div>
-    </div>`;
+      {l.address && (
+        <div className={row}>
+          <MapPin className="mt-0.5 size-3.5 shrink-0 text-muted-foreground" />
+          {l.address}
+        </div>
+      )}
+      {l.phone && (
+        <div className={`${row} mb-2`}>
+          <Phone className="mt-0.5 size-3.5 shrink-0 text-muted-foreground" />
+          {l.phone}
+        </div>
+      )}
+      <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs font-semibold">
+        <a style={link} className="inline-flex items-center gap-1" href={`/prospectos/${l.id}`}>
+          <FileText className="size-3.5" /> Ficha
+        </a>
+        {wa && (
+          <a style={link} className="inline-flex items-center gap-1" target="_blank" rel="noopener noreferrer" href={`https://wa.me/${wa}`}>
+            <MessageCircle className="size-3.5" /> WhatsApp
+          </a>
+        )}
+        <a style={link} className="inline-flex items-center gap-1" target="_blank" rel="noopener noreferrer" href={gmapsDir(l.lat, l.lng)}>
+          <Navigation className="size-3.5" /> Cómo llegar
+        </a>
+      </div>
+    </div>
+  );
 }
 
 export function LeadMap({ leads, today }: { leads: MapLead[]; today: string }) {
@@ -65,6 +91,14 @@ export function LeadMap({ leads, today }: { leads: MapLead[]; today: string }) {
   const layerRef = useRef<L.LayerGroup | null>(null);
   const markersRef = useRef<Map<string, L.CircleMarker>>(new Map());
   const fitKey = useRef<string>("");
+  const popupRoots = useRef<Map<string, Root>>(new Map());
+
+  const closePopups = () => {
+    const roots = [...popupRoots.current.values()];
+    popupRoots.current.clear();
+    // se desmonta fuera del render actual para evitar avisos de React
+    setTimeout(() => roots.forEach((r) => r.unmount()), 0);
+  };
 
   const [statuses, setStatuses] = useState<Set<LeadStatus>>(new Set(OPEN));
   const [municipio, setMunicipio] = useState("");
@@ -112,6 +146,7 @@ export function LeadMap({ leads, today }: { leads: MapLead[]; today: string }) {
     layerRef.current = L.layerGroup().addTo(map);
     mapRef.current = map;
     return () => {
+      closePopups();
       map.remove();
       mapRef.current = null;
       layerRef.current = null;
@@ -123,6 +158,7 @@ export function LeadMap({ leads, today }: { leads: MapLead[]; today: string }) {
     const map = mapRef.current;
     const layer = layerRef.current;
     if (!map || !layer) return;
+    closePopups();
     layer.clearLayers();
     markersRef.current.clear();
 
@@ -133,7 +169,24 @@ export function LeadMap({ leads, today }: { leads: MapLead[]; today: string }) {
         weight: 1.5,
         fillColor: COLORS[l.status],
         fillOpacity: 0.9,
-      }).bindPopup(popupHtml(l));
+      })
+        .bindPopup(
+          () => {
+            // El contenido se crea al abrir el popup (no para los miles de puntos) y se pinta de forma síncrona
+            const el = document.createElement("div");
+            const root = createRoot(el);
+            flushSync(() => root.render(<LeadPopup l={l} />));
+            popupRoots.current.set(l.id, root);
+            return el;
+          },
+          { minWidth: 220 }
+        )
+        .on("popupclose", () => {
+          const root = popupRoots.current.get(l.id);
+          if (!root) return;
+          popupRoots.current.delete(l.id);
+          setTimeout(() => root.unmount(), 0);
+        });
       m.addTo(layer);
       markersRef.current.set(l.id, m);
     }

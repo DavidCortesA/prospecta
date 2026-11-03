@@ -34,7 +34,7 @@ export async function createQuote(input: QuoteInput) {
       customer_name: clean(input.customer_name) ?? "Cliente",
       customer_company: clean(input.customer_company),
       customer_email: clean(input.customer_email),
-      currency: input.currency || "USD",
+      currency: "MXN",
       discount_pct: Math.min(100, Math.max(0, money(input.discount_pct))),
       tax_pct: Math.min(100, Math.max(0, money(input.tax_pct))),
       valid_until: clean(input.valid_until),

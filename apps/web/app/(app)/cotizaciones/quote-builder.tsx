@@ -2,7 +2,6 @@
 
 import { useMemo, useState, useTransition } from "react";
 import { Minus, Plus, Trash2 } from "lucide-react";
-import { CURRENCIES } from "@/lib/constants";
 import { money } from "@/lib/format";
 import { calcTotals, type QuoteInput } from "@/lib/quotes";
 import { btn, inputCls } from "@/components/ui-kit";
@@ -26,7 +25,6 @@ type Defaults = {
   customer_name: string;
   customer_company: string;
   customer_email: string;
-  currency: string;
   valid_until: string;
 };
 
@@ -76,7 +74,6 @@ export function QuoteBuilder({ features, defaults }: { features: CatalogFeature[
       customer_name: form.customer_name,
       customer_company: form.customer_company || null,
       customer_email: form.customer_email || null,
-      currency: form.currency,
       discount_pct: discount,
       tax_pct: tax,
       valid_until: form.valid_until || null,
@@ -132,7 +129,7 @@ export function QuoteBuilder({ features, defaults }: { features: CatalogFeature[
                           >
                             <span className="flex items-start justify-between gap-2">
                               <span className="text-sm font-semibold">{f.name}</span>
-                              <span className="shrink-0 text-sm font-extrabold">{money(f.price, form.currency)}</span>
+                              <span className="shrink-0 text-sm font-extrabold">{money(f.price)}</span>
                             </span>
                             {f.description && <span className="mt-1 line-clamp-2 block text-xs text-muted-foreground">{f.description}</span>}
                           </button>
@@ -159,15 +156,7 @@ export function QuoteBuilder({ features, defaults }: { features: CatalogFeature[
 
         <section className="rounded-2xl border bg-card p-5 shadow-sm">
           <h2 className="mb-4 text-sm font-bold">3. Condiciones</h2>
-          <div className="grid gap-3 sm:grid-cols-4">
-            <label className="space-y-1.5">
-              <span className="text-xs font-semibold text-muted-foreground">Moneda</span>
-              <select value={form.currency} onChange={(e) => set("currency", e.target.value)} className={inputCls}>
-                {CURRENCIES.map((c) => (
-                  <option key={c}>{c}</option>
-                ))}
-              </select>
-            </label>
+          <div className="grid gap-3 sm:grid-cols-3">
             <label className="space-y-1.5">
               <span className="text-xs font-semibold text-muted-foreground">Descuento %</span>
               <input type="number" min={0} max={100} step="0.5" value={discount} onChange={(e) => setDiscount(Number(e.target.value))} className={inputCls} />
@@ -221,7 +210,7 @@ export function QuoteBuilder({ features, defaults }: { features: CatalogFeature[
                       className={cn(inputCls, "w-28 py-1.5")}
                       aria-label="Precio unitario"
                     />
-                    <span className="ml-auto text-sm font-bold">{money(l.qty * l.unit_price, form.currency)}</span>
+                    <span className="ml-auto text-sm font-bold">{money(l.qty * l.unit_price)}</span>
                   </div>
                 </li>
               ))}
@@ -231,12 +220,12 @@ export function QuoteBuilder({ features, defaults }: { features: CatalogFeature[
           )}
 
           <dl className="space-y-1.5 border-t px-5 py-4 text-sm">
-            <Row label="Subtotal" value={money(totals.subtotal, form.currency)} />
-            {discount > 0 && <Row label={`Descuento (${discount}%)`} value={`− ${money(totals.discount, form.currency)}`} />}
-            {tax > 0 && <Row label={`Impuesto (${tax}%)`} value={money(totals.tax, form.currency)} />}
+            <Row label="Subtotal" value={money(totals.subtotal)} />
+            {discount > 0 && <Row label={`Descuento (${discount}%)`} value={`− ${money(totals.discount)}`} />}
+            {tax > 0 && <Row label={`Impuesto (${tax}%)`} value={money(totals.tax)} />}
             <div className="flex items-baseline justify-between border-t pt-3">
               <dt className="font-bold">Total</dt>
-              <dd className="text-2xl font-extrabold">{money(totals.total, form.currency)}</dd>
+              <dd className="text-2xl font-extrabold">{money(totals.total)}</dd>
             </div>
           </dl>
 

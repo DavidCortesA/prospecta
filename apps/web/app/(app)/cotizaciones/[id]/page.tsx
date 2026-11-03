@@ -2,7 +2,7 @@ import { Suspense } from "react";
 import { headers } from "next/headers";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, CheckCircle2, Eye, FileText, Send, XCircle } from "lucide-react";
 import { createClient } from "@/lib/server";
 import { QUOTE_LABEL, QUOTE_STATUSES, QUOTE_TONE, type QuoteStatus } from "@/lib/constants";
 import { dateShort, dateTime, money, timeAgo } from "@/lib/format";
@@ -19,6 +19,13 @@ export default function Page(props: PageProps<"/cotizaciones/[id]">) {
     </Suspense>
   );
 }
+
+const STATUS_ACTION = {
+  draft: { Icon: FileText, label: "A borrador" },
+  sent: { Icon: Send, label: "Marcar enviada" },
+  accepted: { Icon: CheckCircle2, label: "Marcar aceptada" },
+  rejected: { Icon: XCircle, label: "Rechazada" },
+} as const;
 
 type Item = { id: string; name: string; description: string | null; qty: number; unit_price: number; position: number };
 
@@ -46,11 +53,11 @@ async function Detail({ params }: { params: PageProps<"/cotizaciones/[id]">["par
     `${businessName} — ${number}: ${q.title}`,
     `Para: ${q.customer_name}${q.customer_company ? ` (${q.customer_company})` : ""}`,
     "",
-    ...items.map((i) => `• ${i.name}${i.qty !== 1 ? ` x${i.qty}` : ""}: ${money(i.qty * i.unit_price, q.currency)}`),
+    ...items.map((i) => `• ${i.name}${i.qty !== 1 ? ` x${i.qty}` : ""}: ${money(i.qty * i.unit_price)}`),
     "",
-    ...(t.discount ? [`Descuento: -${money(t.discount, q.currency)}`] : []),
-    ...(t.tax ? [`Impuesto: ${money(t.tax, q.currency)}`] : []),
-    `TOTAL: ${money(t.total, q.currency)}`,
+    ...(t.discount ? [`Descuento: -${money(t.discount)}`] : []),
+    ...(t.tax ? [`Impuesto: ${money(t.tax)}`] : []),
+    `TOTAL: ${money(t.total)}`,
     ...(q.valid_until ? [`Válida hasta: ${dateShort(q.valid_until)}`] : []),
   ].join("\n");
 
@@ -68,7 +75,14 @@ async function Detail({ params }: { params: PageProps<"/cotizaciones/[id]">["par
               {QUOTE_STATUSES.filter((s) => s !== status).map((s) => (
                 <form key={s} action={setQuoteStatus.bind(null, q.id, s)}>
                   <button className={`${btn.outline} px-3 py-1.5 text-xs`}>
-                    {s === "sent" ? "Marcar enviada" : s === "accepted" ? "Aceptada ✓" : s === "rejected" ? "Rechazada" : "A borrador"}
+                    {(() => {
+                      const { Icon, label } = STATUS_ACTION[s];
+                      return (
+                        <>
+                          <Icon className="size-3.5" /> {label}
+                        </>
+                      );
+                    })()}
                   </button>
                 </form>
               ))}
@@ -95,11 +109,11 @@ async function Detail({ params }: { params: PageProps<"/cotizaciones/[id]">["par
             <p className="text-xs text-muted-foreground">
               {q.accepted_at ? (
                 <>
-                  ✅ <strong>Aceptada por {q.accepted_name}</strong> el {dateTime(q.accepted_at)}
+                  <CheckCircle2 className="mr-1 inline size-3.5 align-text-bottom text-emerald-600" /> <strong>Aceptada por {q.accepted_name}</strong> el {dateTime(q.accepted_at)}
                   {q.client_comment ? ` · “${q.client_comment}”` : ""}
                 </>
               ) : q.viewed_at ? (
-                <>👁 El cliente la abrió {timeAgo(q.viewed_at)} ({q.view_count} {q.view_count === 1 ? "visita" : "visitas"}). Te avisaré por Telegram cuando la acepte.</>
+                <><Eye className="mr-1 inline size-3.5 align-text-bottom" /> El cliente la abrió {timeAgo(q.viewed_at)} ({q.view_count} {q.view_count === 1 ? "visita" : "visitas"}). Te avisaré por Telegram cuando la acepte.</>
               ) : (
                 <>Todavía no la han abierto. Te avisaré por Telegram cuando la abran y cuando la acepten.</>
               )}

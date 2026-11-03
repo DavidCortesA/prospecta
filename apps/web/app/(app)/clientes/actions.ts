@@ -54,7 +54,6 @@ export async function createProject(clientId: string, formData: FormData) {
     client_id: clientId,
     name: text(formData, "name") ?? "Proyecto",
     budget: num(formData, "budget"),
-    currency: text(formData, "currency") ?? "USD",
     start_date: text(formData, "start_date"),
     due_date: text(formData, "due_date"),
   });

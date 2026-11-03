@@ -36,7 +36,7 @@ async function List({ searchParams }: { searchParams: PageProps<"/cotizaciones">
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("quotes")
-    .select("id, number, title, status, currency, customer_name, customer_company, discount_pct, tax_pct, created_at, valid_until, quote_items(qty, unit_price)")
+    .select("id, number, title, status, customer_name, customer_company, discount_pct, tax_pct, created_at, valid_until, quote_items(qty, unit_price)")
     .order("created_at", { ascending: false })
     .limit(300);
 
@@ -103,7 +103,7 @@ async function List({ searchParams }: { searchParams: PageProps<"/cotizaciones">
                     <td className="px-3 py-3">
                       <Badge className={QUOTE_TONE[q.status as QuoteStatus]}>{QUOTE_LABEL[q.status as QuoteStatus]}</Badge>
                     </td>
-                    <td className="px-3 py-3 text-right font-bold">{money(q.total, q.currency)}</td>
+                    <td className="px-3 py-3 text-right font-bold">{money(q.total)}</td>
                     <td className="hidden px-3 py-3 text-muted-foreground md:table-cell">{dateShort(q.created_at)}</td>
                   </tr>
                 ))}

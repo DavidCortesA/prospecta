@@ -13,7 +13,6 @@ export type QuoteInput = {
   customer_name: string;
   customer_company: string | null;
   customer_email: string | null;
-  currency: string;
   discount_pct: number;
   tax_pct: number;
   valid_until: string | null;

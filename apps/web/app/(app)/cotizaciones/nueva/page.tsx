@@ -52,7 +52,6 @@ async function Builder({ searchParams }: { searchParams: PageProps<"/cotizacione
         customer_name: who.name,
         customer_company: who.company,
         customer_email: who.email,
-        currency: "USD",
         valid_until: valid,
       }}
     />

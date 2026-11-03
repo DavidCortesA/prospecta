@@ -11,11 +11,11 @@ export const DEFAULT_MILESTONES = [
 /** Crea un proyecto con la lista de hitos por defecto. Devuelve el id o null si falla. */
 export async function createProjectWithMilestones(
   supabase: SupabaseClient,
-  input: { client_id: string; name: string; budget?: number | null; currency?: string; start_date?: string | null; due_date?: string | null }
+  input: { client_id: string; name: string; budget?: number | null; start_date?: string | null; due_date?: string | null }
 ) {
   const { data: project, error } = await supabase
     .from("projects")
-    .insert({ currency: "USD", ...input })
+    .insert({ currency: "MXN", ...input })
     .select("id")
     .single();
   if (error || !project) return null;

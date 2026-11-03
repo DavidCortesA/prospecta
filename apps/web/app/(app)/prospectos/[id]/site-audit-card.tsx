@@ -1,4 +1,4 @@
-import { ExternalLink, Search } from "lucide-react";
+import { CheckCircle2, ExternalLink, Search } from "lucide-react";
 import { AutoRefresh } from "@/components/auto-refresh";
 import { Card, CardHeader, MigrationNotice, btn } from "@/components/ui-kit";
 import { dateTime, timeAgo } from "@/lib/format";
@@ -70,7 +70,7 @@ export function SiteAuditCard({
 
           {running && (
             <p className="rounded-xl bg-sky-50 px-4 py-3 text-sm text-sky-900">
-              🔎 El bot está abriendo el sitio en un celular virtual. Tarda menos de un minuto y esta tarjeta se actualiza sola.
+              <Search className="mr-1.5 inline size-4 align-text-bottom" /> El bot está abriendo el sitio en un celular virtual. Tarda menos de un minuto y esta tarjeta se actualiza sola.
             </p>
           )}
 
@@ -127,7 +127,7 @@ export function SiteAuditCard({
                   ))}
                 </ul>
               ) : (
-                <p className="rounded-xl bg-emerald-50 px-4 py-3 text-sm text-emerald-800">✅ No se encontraron problemas importantes.</p>
+                <p className="rounded-xl bg-emerald-50 px-4 py-3 text-sm text-emerald-800"><CheckCircle2 className="mr-1.5 inline size-4 align-text-bottom" /> No se encontraron problemas importantes.</p>
               )}
 
               {audit.screenshot && (
