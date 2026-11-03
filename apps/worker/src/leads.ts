@@ -1,6 +1,7 @@
 import { config } from "./config.js";
 import { db } from "./db.js";
 import { addDays, dayLabel, todayKey } from "./dates.js";
+import { whatsappUrlFor } from "./messages.js";
 import { connection } from "./queues.js";
 import { escapeHtml, notify, type Keyboard } from "./telegram.js";
 
@@ -49,13 +50,14 @@ export type Lead = {
 
 const LEAD_COLUMNS = "id, name, company, email, phone, city, notes, status, next_followup";
 
-export function leadKeyboard(lead: Pick<Lead, "id">): Keyboard {
+export function leadKeyboard(lead: Pick<Lead, "id">, waUrl?: string | null): Keyboard {
   const b = (status: LeadStatus) => ({ text: `${STATUS_EMOJI[status]} ${STATUS_LABEL[status]}`, callback_data: `s:${lead.id}:${STATUS_TO_CODE[status]}` });
   const rows: Keyboard = [
     [b("contacted"), b("replied")],
     [b("qualified"), b("won")],
     [{ ...b("lost"), text: "❌ Rechazó" }, { text: "⏰ +3 días", callback_data: `f:${lead.id}:3` }],
   ];
+  if (waUrl) rows.push([{ text: "📲 Abrir WhatsApp con mensaje", url: waUrl }]);
   if (config.dashboardUrl) rows.push([{ text: "Abrir en el dashboard", url: `${config.dashboardUrl}/prospectos/${lead.id}` }]);
   return rows;
 }
@@ -79,7 +81,7 @@ export const followupLine = (date: string | null) => (date ? `📅 Seguimiento: 
 
 export async function sendLeadCard(lead: Lead, title: string, extra = ""): Promise<void> {
   const text = [`${leadCard(lead, title)}${extra}`, statusLine(lead.status), followupLine(lead.next_followup)].filter(Boolean).join("\n");
-  const messageId = await notify(text, leadKeyboard(lead));
+  const messageId = await notify(text, leadKeyboard(lead, await whatsappUrlFor(lead)));
   if (messageId) await connection.set(`tg:msg:${messageId}`, lead.id, "EX", MESSAGE_TTL);
 }
 

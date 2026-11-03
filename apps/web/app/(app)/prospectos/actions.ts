@@ -117,3 +117,15 @@ export async function snoozeFollowup(id: string, days: number) {
 export async function clearFollowup(id: string) {
   await setFollowup(id, null);
 }
+
+/**
+ * Registra que se abrió WhatsApp/correo con una plantilla. Si el prospecto estaba Nuevo, pasa a Contactado
+ * (y el trigger de la base agenda el seguimiento en 3 días).
+ */
+export async function logContact(leadId: string, channel: "whatsapp" | "email", template: string) {
+  const { supabase } = await requireUser();
+  await supabase.from("lead_events").insert({ lead_id: leadId, type: "contact", payload: { channel, template } });
+  const { data: lead } = await supabase.from("leads").select("status").eq("id", leadId).maybeSingle();
+  if (lead?.status === "new") await supabase.from("leads").update({ status: "contacted" }).eq("id", leadId);
+  revalidatePath("/", "layout");
+}

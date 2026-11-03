@@ -17,6 +17,8 @@ export const config = {
   timezone: process.env.APP_TZ ?? "America/Mexico_City",
   /** Cron del resumen diario de Telegram (por defecto, todos los días a las 9:00) */
   digestCron: process.env.DIGEST_CRON ?? "0 9 * * *",
+  /** Nombre de tu empresa para la variable {{negocio}} de las plantillas */
+  businessName: process.env.BUSINESS_NAME ?? "Prospecta",
   /** URL pública del dashboard (opcional): agrega un botón "Abrir en el dashboard" a los avisos */
   dashboardUrl: process.env.DASHBOARD_URL?.replace(/\/$/, ""),
 };

@@ -7,6 +7,8 @@ import { LEAD_STATUSES, STATUS_LABEL, type LeadStatus } from "@/lib/constants";
 import { dateTime, dayLabel, followupState, money, timeAgo, todayKey } from "@/lib/format";
 import { Card, CardHeader, LinkButton, StatusBadge, btn, inputCls } from "@/components/ui-kit";
 import { LeadFields } from "../lead-fields";
+import { ContactActions, type ContactItem } from "./contact-actions";
+import { mailtoLink, renderTemplate, templateVars, whatsappLink } from "@/lib/templates";
 import { addNote, changeStatusForm, clearFollowup, deleteLead, setFollowupForm, snoozeFollowup, updateLead } from "../actions";
 
 export default function Page(props: PageProps<"/prospectos/[id]">) {
@@ -28,12 +30,30 @@ async function Detail({
   const { error } = await searchParams;
   const supabase = await createClient();
 
-  const [{ data: lead }, { data: events }, { data: client }] = await Promise.all([
+  const [{ data: lead }, { data: events }, { data: client }, { data: templates }] = await Promise.all([
     supabase.from("leads").select("*, sources(name)").eq("id", id).maybeSingle(),
     supabase.from("lead_events").select("id, type, payload, created_at").eq("lead_id", id).order("created_at", { ascending: false }).limit(50),
     supabase.from("clients").select("id").eq("lead_id", id).maybeSingle(),
+    // Si la migración 0008 no está aplicada devuelve error y simplemente no se muestran plantillas
+    supabase.from("message_templates").select("id, name, channel, subject, body, is_default").eq("active", true).order("is_default", { ascending: false }).order("created_at"),
   ]);
   if (!lead) notFound();
+
+  const vars = templateVars(lead);
+  const contactItems: ContactItem[] = (templates ?? []).flatMap((t): ContactItem[] => {
+    const body = renderTemplate(t.body, vars);
+    if (t.channel === "whatsapp") {
+      const href = whatsappLink(lead.phone, body);
+      return href ? [{ id: t.id, name: t.name, channel: "whatsapp", href, preview: body, isDefault: t.is_default }] : [];
+    }
+    if (t.channel === "email" && lead.email) {
+      const subject = renderTemplate(t.subject ?? "", vars);
+      return [{ id: t.id, name: t.name, channel: "email", href: mailtoLink(lead.email, subject, body), preview: `Asunto: ${subject}
+
+${body}`, isDefault: t.is_default }];
+    }
+    return [];
+  });
 
   const status = lead.status as LeadStatus;
   const open = !["won", "lost"].includes(status);
@@ -97,6 +117,18 @@ async function Detail({
         </div>
 
         <div className="space-y-6">
+          <Card>
+            <CardHeader title="Contactar" hint="Abre el mensaje ya escrito; solo pulsa enviar" />
+            {contactItems.length ? (
+              <ContactActions leadId={lead.id} items={contactItems} />
+            ) : (
+              <p className="px-5 py-6 text-center text-sm text-muted-foreground">
+                {lead.phone || lead.email ? "Sin plantillas activas. Crea una en " : "Este prospecto no tiene teléfono ni correo. "}
+                {(lead.phone || lead.email) && <Link href="/plantillas" className="font-semibold text-primary hover:underline">Plantillas</Link>}
+              </p>
+            )}
+          </Card>
+
           <Card>
             <CardHeader title="Mover de etapa" />
             <div className="space-y-3 p-5">
@@ -201,6 +233,7 @@ function Row({ label, value }: { label: string; value: string }) {
 function describe(e: { type: string; payload: Record<string, unknown> }) {
   if (e.type === "created") return "Prospecto creado";
   if (e.type === "note") return `📝 ${String(e.payload.text ?? "")}`;
+  if (e.type === "contact") return `📲 Contactado por ${e.payload.channel === "email" ? "correo" : "WhatsApp"} (${String(e.payload.template ?? "plantilla")})`;
   if (e.type === "status_change") {
     const from = STATUS_LABEL[e.payload.from as LeadStatus] ?? String(e.payload.from);
     const to = STATUS_LABEL[e.payload.to as LeadStatus] ?? String(e.payload.to);

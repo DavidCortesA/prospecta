@@ -15,7 +15,7 @@ Bot de captación de clientes con dashboard.
 ## Puesta en marcha
 
 1. **Base de datos**: en el SQL Editor de Supabase ejecuta, en orden, los archivos de `supabase/migrations/`:
-   `0001_init` → `0002_lead_management` → `0003_clients_projects` → `0004_catalog_quotes` → `0006_lead_external_id` → `0007_followups` (y, opcional, `0005_seed_features_example` con features de ejemplo). Crea un usuario en Authentication → Users.
+   `0001_init` → `0002_lead_management` → `0003_clients_projects` → `0004_catalog_quotes` → `0006_lead_external_id` → `0007_followups` → `0008_message_templates` (y, opcional, `0005_seed_features_example` con features de ejemplo). Crea un usuario en Authentication → Users.
 2. **Redis**: `docker compose up -d`
 3. **Web**: copia `apps/web/.env.example` a `.env.local`, completa los valores y ejecuta
    ```bash
@@ -97,10 +97,19 @@ El bot solo atiende al chat configurado en `TELEGRAM_CHAT_ID`. Variable opcional
 - Cada mañana (por defecto 9:00, hora de `APP_TZ`) el bot manda el resumen del día: seguimientos, prospectos sin contactar y cotizaciones esperando respuesta, con botones. `/seguimientos` lo pide en cualquier momento.
 - Variables opcionales del worker: `APP_TZ` (por defecto `America/Mexico_City`) y `DIGEST_CRON` (por defecto `0 9 * * *`).
 
+## Plantillas de WhatsApp y correo
+
+En **Plantillas** guardas mensajes con variables (`{{empresa}}`, `{{nombre}}`, `{{giro}}`, `{{ciudad}}`, `{{negocio}}`) que se llenan solas con los datos de cada prospecto.
+
+- En el detalle del prospecto, la tarjeta **Contactar** abre WhatsApp (o tu correo) con el mensaje ya escrito; tú solo pulsas enviar. Al abrirlo, el prospecto pasa a *Contactado* y se agenda el seguimiento.
+- Los avisos de Telegram traen el botón **📲 Abrir WhatsApp con mensaje**, que usa la plantilla de WhatsApp marcada *Por defecto*.
+- No se envía nada automáticamente: el mensaje lo envías tú desde tu WhatsApp o correo.
+- `{{negocio}}` sale de `NEXT_PUBLIC_BUSINESS_NAME` (Vercel) y `BUSINESS_NAME` (worker). Los teléfonos se normalizan a formato mexicano (`52` + 10 dígitos); un teléfono fijo abrirá WhatsApp pero no recibirá el mensaje.
+
 ## Scraping responsable
 
 El colector web con Playwright solo corre si la fuente tiene `scraping_allowed = true` (revisaste sus términos de uso) **y** `robots.txt` permite la URL para el user-agent del bot. Solo extrae datos de contacto públicos (`mailto:` / `tel:`). Configura `USER_AGENT` con un contacto real.
 
 ## Versiones
 
-Se usan tags semánticos: `v0.1.0` base web + auth · `v0.2.0` esquema DB + Redis · `v0.3.0` worker · `v0.4.0` dashboard · `v0.5.0` despliegue (Dockerfile del worker + Railway/Vercel) · `v0.6.0` diseño, PWA y resumen · `v0.7.0` prospectos, pipeline y fuentes · `v0.8.0` clientes, proyectos y cierres · `v0.9.0` catálogo y cotizaciones · `v0.10.0` fuente DENUE (paginación, filtros, score y avisos agrupados) · `v0.11.0` control de prospectos desde Telegram · `v0.12.0` seguimientos y resumen diario.
+Se usan tags semánticos: `v0.1.0` base web + auth · `v0.2.0` esquema DB + Redis · `v0.3.0` worker · `v0.4.0` dashboard · `v0.5.0` despliegue (Dockerfile del worker + Railway/Vercel) · `v0.6.0` diseño, PWA y resumen · `v0.7.0` prospectos, pipeline y fuentes · `v0.8.0` clientes, proyectos y cierres · `v0.9.0` catálogo y cotizaciones · `v0.10.0` fuente DENUE (paginación, filtros, score y avisos agrupados) · `v0.11.0` control de prospectos desde Telegram · `v0.12.0` seguimientos y resumen diario · `v0.13.0` plantillas de WhatsApp y correo.
