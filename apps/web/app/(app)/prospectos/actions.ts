@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { requireUser } from "@/lib/auth";
 import { LEAD_STATUSES, type LeadStatus } from "@/lib/constants";
+import { ensureClientFromLead } from "@/lib/clients";
 
 const text = (fd: FormData, key: string) => {
   const v = fd.get(key);
@@ -64,6 +65,8 @@ export async function setLeadStatus(id: string, status: LeadStatus, extra?: { de
 
   const { error } = await supabase.from("leads").update(patch).eq("id", id);
   if (error) throw new Error(error.message);
+
+  if (status === "won") await ensureClientFromLead(supabase, id);
 
   revalidatePath("/", "layout");
 }
