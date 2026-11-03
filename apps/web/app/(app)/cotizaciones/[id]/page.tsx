@@ -1,12 +1,14 @@
 import { Suspense } from "react";
+import { headers } from "next/headers";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { createClient } from "@/lib/server";
 import { QUOTE_LABEL, QUOTE_STATUSES, QUOTE_TONE, type QuoteStatus } from "@/lib/constants";
-import { dateShort, money } from "@/lib/format";
+import { dateShort, dateTime, money, timeAgo } from "@/lib/format";
 import { businessName, calcTotals, quoteNumber } from "@/lib/quotes";
-import { Badge, btn } from "@/components/ui-kit";
+import { Badge, MigrationNotice, btn, inputCls } from "@/components/ui-kit";
+import { QuoteDocument } from "@/components/quote-document";
 import { CopyButton, PrintButton } from "@/components/quote-actions";
 import { deleteQuote, setQuoteStatus } from "../actions";
 
@@ -30,6 +32,15 @@ async function Detail({ params }: { params: PageProps<"/cotizaciones/[id]">["par
   const t = calcTotals(items, Number(q.discount_pct), Number(q.tax_pct));
   const number = quoteNumber(q.number);
   const status = q.status as QuoteStatus;
+
+  // Enlace público: se arma con el dominio desde el que se está viendo el dashboard
+  const h = await headers();
+  const host = h.get("x-forwarded-host") ?? h.get("host") ?? "";
+  const proto = h.get("x-forwarded-proto") ?? (host.startsWith("localhost") ? "http" : "https");
+  const shareUrl = q.share_token ? `${proto}://${host}/q/${q.share_token}` : null;
+  const whatsappShare = shareUrl
+    ? `https://wa.me/?text=${encodeURIComponent(`Hola ${q.customer_name}, le comparto la cotización ${number} de ${businessName}: ${shareUrl}`)}`
+    : null;
 
   const summary = [
     `${businessName} — ${number}: ${q.title}`,
@@ -68,6 +79,35 @@ async function Detail({ params }: { params: PageProps<"/cotizaciones/[id]">["par
             <PrintButton />
           </div>
         </div>
+        {shareUrl ? (
+          <div className="space-y-3 rounded-2xl border bg-card p-4 shadow-sm">
+            <p className="text-sm font-bold">Enlace para el cliente</p>
+            <div className="flex flex-wrap gap-2">
+              <input readOnly value={shareUrl} aria-label="Enlace de la cotización" className={`${inputCls} min-w-60 flex-1 font-mono text-xs`} />
+              <CopyButton text={shareUrl} label="Copiar enlace" />
+              <a href={whatsappShare!} target="_blank" rel="noopener noreferrer" className={btn.outline}>
+                Enviar por WhatsApp
+              </a>
+              <a href={`${shareUrl}?p=1`} target="_blank" rel="noopener noreferrer" className={btn.outline}>
+                Vista previa
+              </a>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              {q.accepted_at ? (
+                <>
+                  ✅ <strong>Aceptada por {q.accepted_name}</strong> el {dateTime(q.accepted_at)}
+                  {q.client_comment ? ` · “${q.client_comment}”` : ""}
+                </>
+              ) : q.viewed_at ? (
+                <>👁 El cliente la abrió {timeAgo(q.viewed_at)} ({q.view_count} {q.view_count === 1 ? "visita" : "visitas"}). Te avisaré por Telegram cuando la acepte.</>
+              ) : (
+                <>Todavía no la han abierto. Te avisaré por Telegram cuando la abran y cuando la acepten.</>
+              )}
+            </p>
+          </div>
+        ) : (
+          <MigrationNotice file="0009_public_quotes.sql" />
+        )}
         {status !== "accepted" && q.lead_id && (
           <p className="text-xs text-muted-foreground">
             Al marcarla <strong>enviada</strong> el prospecto pasa a Calificado; al marcarla <strong>aceptada</strong> se gana, se crea el cliente y su proyecto.
@@ -75,90 +115,7 @@ async function Detail({ params }: { params: PageProps<"/cotizaciones/[id]">["par
         )}
       </div>
 
-      {/* Documento imprimible */}
-      <article className="mx-auto max-w-3xl rounded-2xl border bg-white p-8 shadow-sm print:max-w-none print:rounded-none print:border-0 print:p-0 print:shadow-none sm:p-12">
-        <header className="flex flex-wrap items-start justify-between gap-4 border-b pb-6">
-          <div>
-            <div className="flex items-center gap-3">
-              <span className="grid size-10 place-items-center rounded-xl bg-sidebar text-lg font-extrabold text-sidebar-primary">{businessName[0]}</span>
-              <p className="text-lg font-extrabold tracking-tight">{businessName}</p>
-            </div>
-          </div>
-          <div className="text-right">
-            <p className="text-xs font-bold uppercase tracking-[0.16em] text-muted-foreground">Cotización</p>
-            <p className="text-2xl font-extrabold tracking-tight">{number}</p>
-            <p className="text-xs text-muted-foreground">Emitida {dateShort(q.created_at)}</p>
-            {q.valid_until && <p className="text-xs text-muted-foreground">Válida hasta {dateShort(q.valid_until)}</p>}
-          </div>
-        </header>
-
-        <section className="grid gap-4 py-6 sm:grid-cols-2">
-          <div>
-            <p className="text-xs font-bold uppercase tracking-[0.14em] text-muted-foreground">Para</p>
-            <p className="mt-1 font-bold">{q.customer_name}</p>
-            {q.customer_company && <p className="text-sm">{q.customer_company}</p>}
-            {q.customer_email && <p className="text-sm text-muted-foreground">{q.customer_email}</p>}
-          </div>
-          <div>
-            <p className="text-xs font-bold uppercase tracking-[0.14em] text-muted-foreground">Proyecto</p>
-            <p className="mt-1 font-bold">{q.title}</p>
-          </div>
-        </section>
-
-        <table className="w-full text-left text-sm">
-          <thead className="border-y text-xs uppercase tracking-wider text-muted-foreground">
-            <tr>
-              <th className="py-3 font-semibold">Concepto</th>
-              <th className="w-16 py-3 text-center font-semibold">Cant.</th>
-              <th className="w-28 py-3 text-right font-semibold">Precio</th>
-              <th className="w-28 py-3 text-right font-semibold">Importe</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y">
-            {items.map((i) => (
-              <tr key={i.id} className="align-top">
-                <td className="py-3 pr-3">
-                  <p className="font-semibold">{i.name}</p>
-                  {i.description && <p className="mt-0.5 text-xs text-muted-foreground">{i.description}</p>}
-                </td>
-                <td className="py-3 text-center">{i.qty}</td>
-                <td className="py-3 text-right">{money(i.unit_price, q.currency)}</td>
-                <td className="py-3 text-right font-semibold">{money(i.qty * i.unit_price, q.currency)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-
-        <dl className="ml-auto mt-6 w-full max-w-xs space-y-1.5 text-sm">
-          <div className="flex justify-between">
-            <dt className="text-muted-foreground">Subtotal</dt>
-            <dd className="font-semibold">{money(t.subtotal, q.currency)}</dd>
-          </div>
-          {t.discount > 0 && (
-            <div className="flex justify-between">
-              <dt className="text-muted-foreground">Descuento ({Number(q.discount_pct)}%)</dt>
-              <dd className="font-semibold">− {money(t.discount, q.currency)}</dd>
-            </div>
-          )}
-          {t.tax > 0 && (
-            <div className="flex justify-between">
-              <dt className="text-muted-foreground">Impuesto ({Number(q.tax_pct)}%)</dt>
-              <dd className="font-semibold">{money(t.tax, q.currency)}</dd>
-            </div>
-          )}
-          <div className="flex items-baseline justify-between border-t pt-3">
-            <dt className="font-bold">Total</dt>
-            <dd className="text-2xl font-extrabold">{money(t.total, q.currency)}</dd>
-          </div>
-        </dl>
-
-        {q.notes && (
-          <section className="mt-8 border-t pt-5">
-            <p className="text-xs font-bold uppercase tracking-[0.14em] text-muted-foreground">Notas y condiciones</p>
-            <p className="mt-2 whitespace-pre-line text-sm">{q.notes}</p>
-          </section>
-        )}
-      </article>
+      <QuoteDocument quote={q} items={items} />
 
       <form action={deleteQuote.bind(null, q.id)} className="no-print text-center">
         <button className={`${btn.ghost} text-rose-600 hover:text-rose-700`}>Eliminar cotización</button>
