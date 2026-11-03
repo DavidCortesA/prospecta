@@ -87,7 +87,7 @@ Cada aviso de prospecto trae botones (✅ Contactado · 💬 Respondió · ⭐ C
 | `rechazó precio alto` | Lo marca perdido con motivo opcional |
 | `nota llamar el lunes` | Guarda una nota en la bitácora |
 
-Sin responder a un aviso, escribe la palabra y el nombre: `contactado Pérez`. Comandos: `/pendientes`, `/buscar nombre`, `/resumen`, `/ayuda`.
+Sin responder a un aviso, escribe la palabra y el nombre: `contactado Pérez`. Comandos: `/pendientes`, `/buscar nombre`, `/correo nombre`, `/sitio nombre`, `/seguimientos`, `/resumen`, `/ayuda`.
 
 El bot solo atiende al chat configurado en `TELEGRAM_CHAT_ID`. Variable opcional del worker: `DASHBOARD_URL` (agrega el botón "Abrir en el dashboard").
 
@@ -104,6 +104,7 @@ En **Plantillas** guardas mensajes con variables (`{{empresa}}`, `{{nombre}}`, `
 
 - En el detalle del prospecto, la tarjeta **Contactar** abre WhatsApp (o tu correo) con el mensaje ya escrito; tú solo pulsas enviar. Al abrirlo, el prospecto pasa a *Contactado* y se agenda el seguimiento.
 - Los avisos de Telegram traen el botón **📲 Abrir WhatsApp con mensaje**, que usa la plantilla de WhatsApp marcada *Por defecto*.
+- Los avisos de Telegram también traen **✉️ Propuesta por correo** (o `/correo nombre`): el bot te manda el correo ya escrito con la plantilla de correo *Por defecto*, con asunto y texto copiables y botones para abrirlo en **Gmail** o **Outlook**. (Telegram no admite botones `mailto:`, por eso se usan enlaces web.)
 - No se envía nada automáticamente: el mensaje lo envías tú desde tu WhatsApp o correo.
 - `{{negocio}}` sale de `NEXT_PUBLIC_BUSINESS_NAME` (Vercel) y `BUSINESS_NAME` (worker). Los teléfonos se normalizan a formato mexicano (`52` + 10 dígitos); un teléfono fijo abrirá WhatsApp pero no recibirá el mensaje.
 
@@ -145,4 +146,4 @@ El colector web con Playwright solo corre si la fuente tiene `scraping_allowed =
 
 ## Versiones
 
-Se usan tags semánticos: `v0.1.0` base web + auth · `v0.2.0` esquema DB + Redis · `v0.3.0` worker · `v0.4.0` dashboard · `v0.5.0` despliegue (Dockerfile del worker + Railway/Vercel) · `v0.6.0` diseño, PWA y resumen · `v0.7.0` prospectos, pipeline y fuentes · `v0.8.0` clientes, proyectos y cierres · `v0.9.0` catálogo y cotizaciones · `v0.10.0` fuente DENUE (paginación, filtros, score y avisos agrupados) · `v0.11.0` control de prospectos desde Telegram · `v0.12.0` seguimientos y resumen diario · `v0.13.0` plantillas de WhatsApp y correo · `v0.14.0` cotización pública con aceptar · `v0.15.0` asistente DENUE · `v0.16.0` mapa, ubicación y rutas · `v0.17.0` revisión del sitio web · **`v1.0.0`** primera versión estable · `v1.1.0` íconos Lucide y moneda MXN (ver [CHANGELOG](CHANGELOG.md)).
+Se usan tags semánticos: `v0.1.0` base web + auth · `v0.2.0` esquema DB + Redis · `v0.3.0` worker · `v0.4.0` dashboard · `v0.5.0` despliegue (Dockerfile del worker + Railway/Vercel) · `v0.6.0` diseño, PWA y resumen · `v0.7.0` prospectos, pipeline y fuentes · `v0.8.0` clientes, proyectos y cierres · `v0.9.0` catálogo y cotizaciones · `v0.10.0` fuente DENUE (paginación, filtros, score y avisos agrupados) · `v0.11.0` control de prospectos desde Telegram · `v0.12.0` seguimientos y resumen diario · `v0.13.0` plantillas de WhatsApp y correo · `v0.14.0` cotización pública con aceptar · `v0.15.0` asistente DENUE · `v0.16.0` mapa, ubicación y rutas · `v0.17.0` revisión del sitio web · **`v1.0.0`** primera versión estable · `v1.1.0` íconos Lucide y moneda MXN · `v1.2.0` propuesta por correo en Telegram (ver [CHANGELOG](CHANGELOG.md)).

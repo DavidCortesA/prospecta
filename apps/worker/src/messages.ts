@@ -77,7 +77,6 @@ async function defaultWhatsappBody(): Promise<string | null> {
   return body;
 }
 
-/** Enlace de WhatsApp con la plantilla por defecto ya llena para este prospecto (o null si no aplica). */
 /** Frase de la última auditoría terminada del prospecto (para la variable {{hallazgo}}). */
 async function latestHeadline(leadId: string): Promise<string | null> {
   const { data, error } = await db
@@ -91,10 +90,80 @@ async function latestHeadline(leadId: string): Promise<string | null> {
   return error ? null : ((data?.headline as string | undefined) ?? null);
 }
 
+/** Enlace de WhatsApp con la plantilla por defecto ya llena para este prospecto (o null si no aplica). */
 export async function whatsappUrlFor(lead: TemplateLead & { id: string; phone: string | null }): Promise<string | null> {
   if (!lead.phone) return null;
   const body = await defaultWhatsappBody();
   if (!body) return null;
   const needsAudit = body.includes("{{hallazgo}}");
   return whatsappLink(lead.phone, renderTemplate(body, templateVars(lead, needsAudit ? await latestHeadline(lead.id) : null)));
+}
+
+// ---------------------------------------------------------------------------------------------
+// Propuesta por correo
+// ---------------------------------------------------------------------------------------------
+
+type EmailTemplate = { name: string; subject: string | null; body: string };
+
+let emailCached: { at: number; tpl: EmailTemplate | null } | null = null;
+
+/** Plantilla de correo marcada por defecto (o la primera activa), con caché corta. */
+async function defaultEmailTemplate(): Promise<EmailTemplate | null> {
+  if (emailCached && Date.now() - emailCached.at < 60_000) return emailCached.tpl;
+  const { data, error } = await db
+    .from("message_templates")
+    .select("name, subject, body")
+    .eq("channel", "email")
+    .eq("active", true)
+    .order("is_default", { ascending: false })
+    .order("created_at", { ascending: true })
+    .limit(1)
+    .maybeSingle();
+  const tpl = error ? null : ((data as EmailTemplate | null) ?? null);
+  emailCached = { at: Date.now(), tpl };
+  return tpl;
+}
+
+export type EmailDraft = {
+  to: string;
+  subject: string;
+  body: string;
+  templateName: string;
+  /** Enlaces web para redactar el correo (Telegram no admite botones `mailto:`) */
+  gmailUrl: string;
+  outlookUrl: string;
+};
+
+const queryString = (params: Record<string, string>) =>
+  Object.entries(params)
+    .map(([k, v]) => `${k}=${encodeURIComponent(v)}`)
+    .join("&");
+
+// Telegram rechaza botones con URL demasiado larga: si el cuerpo no cabe, el enlace lleva solo destinatario y asunto.
+const MAX_BUTTON_URL = 1800;
+
+export function composeUrls(to: string, subject: string, body: string): { gmailUrl: string; outlookUrl: string } {
+  const make = (withBody: boolean) => ({
+    gmailUrl: `https://mail.google.com/mail/?view=cm&fs=1&${queryString({ to, su: subject, ...(withBody ? { body } : {}) })}`,
+    outlookUrl: `https://outlook.office.com/mail/deeplink/compose?${queryString({ to, subject, ...(withBody ? { body } : {}) })}`,
+  });
+  const full = make(true);
+  return full.gmailUrl.length <= MAX_BUTTON_URL && full.outlookUrl.length <= MAX_BUTTON_URL ? full : make(false);
+}
+
+/** Arma el correo a partir de una plantilla ya cargada (función pura, fácil de probar). */
+export function buildEmailDraft(tpl: EmailTemplate, lead: TemplateLead & { email: string }, hallazgo?: string | null): EmailDraft {
+  const vars = templateVars(lead, hallazgo);
+  const subject = renderTemplate(tpl.subject ?? "", vars).trim();
+  const body = renderTemplate(tpl.body, vars).trim();
+  return { to: lead.email, subject, body, templateName: tpl.name, ...composeUrls(lead.email, subject, body) };
+}
+
+/** Correo listo para este prospecto con la plantilla de correo por defecto (o null si no tiene correo o no hay plantilla). */
+export async function emailDraftFor(lead: TemplateLead & { id: string; email: string | null }): Promise<EmailDraft | null> {
+  if (!lead.email) return null;
+  const tpl = await defaultEmailTemplate();
+  if (!tpl) return null;
+  const needsAudit = `${tpl.subject ?? ""}${tpl.body}`.includes("{{hallazgo}}");
+  return buildEmailDraft(tpl, { ...lead, email: lead.email }, needsAudit ? await latestHeadline(lead.id) : null);
 }

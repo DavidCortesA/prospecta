@@ -1,6 +1,7 @@
 import { config } from "./config.js";
 import { dayLabel } from "./dates.js";
 import { requestAudit, type RequestResult } from "./audit/runner.js";
+import { sendEmailProposal, type ProposalResult } from "./proposal.js";
 import { sendDigest } from "./digest.js";
 import { escapeHtml, notify, tg } from "./telegram.js";
 import {
@@ -50,7 +51,9 @@ const HELP = [
   "",
   "• <code>sitio</code> (revisa el sitio web del prospecto: velocidad, celular, HTTPS, contacto…)",
   "",
-  "Comandos: /seguimientos · /pendientes · /buscar nombre · /sitio nombre · /resumen · /ayuda",
+  "• <code>correo</code> (te mando la propuesta por correo ya escrita, lista para Gmail u Outlook)",
+  "",
+  "Comandos: /seguimientos · /pendientes · /buscar nombre · /sitio nombre · /correo nombre · /resumen · /ayuda",
   "Cada mañana te mando el resumen del día automáticamente.",
 ].join("\n");
 
@@ -59,6 +62,13 @@ const AUDIT_REPLY: Record<RequestResult, string> = {
   already: "Ya hay una revisión de este sitio en curso.",
   no_website: "Este prospecto no tiene sitio web.",
   unavailable: "Falta aplicar la migración 0011 en Supabase.",
+};
+
+const PROPOSAL_REPLY: Record<ProposalResult, string> = {
+  sent: "✉️ Te mandé la propuesta por correo.",
+  no_email: "Este prospecto no tiene correo.",
+  no_template: "No hay una plantilla de correo activa. Crea una en Plantillas del dashboard.",
+  not_found: "No encontré ese prospecto.",
 };
 
 const authorized = (chatId: number) => String(chatId) === String(config.telegramChatId);
@@ -166,6 +176,11 @@ async function handleCallback(cb: NonNullable<TgUpdate["callback_query"]>) {
     return;
   }
 
+  if (kind === "m") {
+    const result = await sendEmailProposal(leadId);
+    return void (await answer(PROPOSAL_REPLY[result], result !== "sent"));
+  }
+
   if (kind === "a") {
     const result = await requestAudit(leadId);
     return void (await answer(AUDIT_REPLY[result], result === "no_website" || result === "unavailable"));
@@ -221,6 +236,15 @@ async function handleText(msg: TgMessage) {
         for (const l of leads) await sendLeadCard(l, "Por contactar");
         return;
       }
+      case "correo":
+      case "email": {
+        const target = await resolveByName(parsed.rest, reply, "/correo Pérez");
+        if (target) {
+          const result = await sendEmailProposal(target);
+          if (result !== "sent") await reply(PROPOSAL_REPLY[result]);
+        }
+        return;
+      }
       case "sitio": {
         const target = await resolveByName(parsed.rest, reply, "/sitio Pérez");
         if (target) await reply(AUDIT_REPLY[await requestAudit(target)]);
@@ -253,6 +277,15 @@ async function handleText(msg: TgMessage) {
     const lead = await getLead(leadId);
     const ok = await addNote(leadId, parsed.rest);
     return void (await reply(ok ? `📝 Nota guardada en ${escapeHtml(lead?.name ?? "el prospecto")}.` : "No se pudo guardar la nota."));
+  }
+
+  if (parsed.kind === "proposal") {
+    const target = leadId ?? (await resolveByName(parsed.rest, reply, "correo Pérez"));
+    if (target) {
+      const result = await sendEmailProposal(target);
+      if (result !== "sent") await reply(PROPOSAL_REPLY[result]);
+    }
+    return;
   }
 
   if (parsed.kind === "audit") {

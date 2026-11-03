@@ -5,7 +5,8 @@ export type Parsed =
   | { kind: "status"; status: LeadStatus; rest: string }
   | { kind: "note"; rest: string }
   | { kind: "followup"; days: number; rest: string }
-  | { kind: "audit"; rest: string };
+  | { kind: "audit"; rest: string }
+  | { kind: "proposal"; rest: string };
 
 /** Palabras clave (sin acentos, en minúsculas) -> estado. */
 const KEYWORDS: Record<string, LeadStatus> = {
@@ -28,6 +29,7 @@ const KEYWORDS: Record<string, LeadStatus> = {
   nointeresa: "lost",
 };
 
+const PROPOSAL_WORDS = new Set(["correo", "email", "mail", "propuesta"]);
 const AUDIT_WORDS = new Set(["sitio", "auditar", "revisar"]);
 const FOLLOWUP_WORDS = new Set(["recordar", "recuerdame", "seguimiento", "agendar", "posponer"]);
 const DAY_WORDS: Record<string, number> = { hoy: 0, manana: 1, semana: 7, quincena: 15, mes: 30 };
@@ -72,6 +74,10 @@ export function parseMessage(raw: string): Parsed | null {
   // "contacté a Pérez" / "ganado con Pérez": se quita la palabra de enlace para buscar por nombre
   const rest = tail.join(" ").replace(/^(a|al|con)\s+/i, "").trim();
 
+  // "correo Pérez", "propuesta por correo Pérez", "email"
+  if (PROPOSAL_WORDS.has(word)) {
+    return { kind: "proposal", rest: tail.join(" ").replace(/^((por|a|al|para|de|del|el|la|con|correo|email|mail|propuesta)(\s+|$))+/i, "").trim() };
+  }
   // "sitio Pérez", "revisar sitio Pérez", "auditar"
   if (AUDIT_WORDS.has(word)) return { kind: "audit", rest: tail.join(" ").replace(/^((sitio|web|de|del|a|al|la|el)(\s+|$))+/i, "").trim() };
   if (FOLLOWUP_WORDS.has(word)) return { kind: "followup", ...parseFollowup(tail.join(" ")) };

@@ -1,6 +1,11 @@
 # Changelog
 
-Cada versión tiene su tag en git (`v0.1.0` … `v1.0.0`).
+Cada versión tiene su tag en git (`v0.1.0` … `v1.2.0`).
+
+## 1.2.0: Propuesta por correo en Telegram
+- Los avisos de prospectos con correo traen el botón **✉️ Propuesta por correo**; también `/correo nombre` o la palabra `correo` (respondiendo a un aviso).
+- El bot manda el correo ya escrito con la plantilla de correo por defecto: asunto y texto copiables, y botones para abrirlo redactado en **Gmail** o **Outlook** (Telegram no admite botones `mailto:`).
+- Incluye el botón «Ya lo envié (marcar contactado)», que además agenda el seguimiento. Si la plantilla usa `{{hallazgo}}`, toma el resultado de la revisión del sitio.
 
 ## 1.1.0: Íconos Lucide y todo en pesos (MXN)
 - Los emojis usados como íconos en la web se reemplazaron por íconos de [Lucide](https://lucide.dev) (bitácora, cotizaciones, filtros, revisión del sitio y popup del mapa). Los mensajes de Telegram conservan emojis, porque Telegram no muestra íconos SVG.
