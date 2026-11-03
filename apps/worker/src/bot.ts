@@ -1,5 +1,6 @@
 import { config } from "./config.js";
 import { dayLabel } from "./dates.js";
+import { requestAudit, type RequestResult } from "./audit/runner.js";
 import { sendDigest } from "./digest.js";
 import { escapeHtml, notify, tg } from "./telegram.js";
 import {
@@ -47,9 +48,18 @@ const HELP = [
   "",
   "Sin responder a un aviso, escribe la palabra y el nombre: <code>contactado Pérez</code>.",
   "",
-  "Comandos: /seguimientos · /pendientes · /buscar nombre · /resumen · /ayuda",
+  "• <code>sitio</code> (revisa el sitio web del prospecto: velocidad, celular, HTTPS, contacto…)",
+  "",
+  "Comandos: /seguimientos · /pendientes · /buscar nombre · /sitio nombre · /resumen · /ayuda",
   "Cada mañana te mando el resumen del día automáticamente.",
 ].join("\n");
+
+const AUDIT_REPLY: Record<RequestResult, string> = {
+  queued: "🔎 Revisando el sitio web… te aviso en un minuto.",
+  already: "Ya hay una revisión de este sitio en curso.",
+  no_website: "Este prospecto no tiene sitio web.",
+  unavailable: "Falta aplicar la migración 0011 en Supabase.",
+};
 
 const authorized = (chatId: number) => String(chatId) === String(config.telegramChatId);
 
@@ -156,6 +166,11 @@ async function handleCallback(cb: NonNullable<TgUpdate["callback_query"]>) {
     return;
   }
 
+  if (kind === "a") {
+    const result = await requestAudit(leadId);
+    return void (await answer(AUDIT_REPLY[result], result === "no_website" || result === "unavailable"));
+  }
+
   if (kind === "f") {
     const days = Number(code);
     const date = await setFollowupIn(leadId, Number.isFinite(days) ? days : 3);
@@ -206,6 +221,11 @@ async function handleText(msg: TgMessage) {
         for (const l of leads) await sendLeadCard(l, "Por contactar");
         return;
       }
+      case "sitio": {
+        const target = await resolveByName(parsed.rest, reply, "/sitio Pérez");
+        if (target) await reply(AUDIT_REPLY[await requestAudit(target)]);
+        return;
+      }
       case "buscar": {
         if (!parsed.rest) return void (await reply("Escribe el nombre: <code>/buscar Pérez</code>"));
         const leads = await findLeads(parsed.rest);
@@ -233,6 +253,12 @@ async function handleText(msg: TgMessage) {
     const lead = await getLead(leadId);
     const ok = await addNote(leadId, parsed.rest);
     return void (await reply(ok ? `📝 Nota guardada en ${escapeHtml(lead?.name ?? "el prospecto")}.` : "No se pudo guardar la nota."));
+  }
+
+  if (parsed.kind === "audit") {
+    const target = leadId ?? (await resolveByName(parsed.rest, reply, "sitio Pérez"));
+    if (target) await reply(AUDIT_REPLY[await requestAudit(target)]);
+    return;
   }
 
   if (parsed.kind === "followup") {

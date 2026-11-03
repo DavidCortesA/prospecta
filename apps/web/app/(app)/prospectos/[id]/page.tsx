@@ -5,9 +5,10 @@ import { ArrowLeft, FileText, Trophy, XCircle } from "lucide-react";
 import { createClient } from "@/lib/server";
 import { LEAD_STATUSES, STATUS_LABEL, type LeadStatus } from "@/lib/constants";
 import { dateTime, dayLabel, followupState, money, timeAgo, todayKey } from "@/lib/format";
-import { Card, CardHeader, LinkButton, StatusBadge, btn, inputCls } from "@/components/ui-kit";
+import { Card, CardHeader, LinkButton, StatusBadge, btn, inputCls, isMissingTable } from "@/components/ui-kit";
 import { LeadFields } from "../lead-fields";
 import { ContactActions, type ContactItem } from "./contact-actions";
+import { SiteAuditCard, type SiteAudit } from "./site-audit-card";
 import { mailtoLink, renderTemplate, templateVars, whatsappLink } from "@/lib/templates";
 import { addNote, changeStatusForm, clearFollowup, deleteLead, setFollowupForm, snoozeFollowup, updateLead } from "../actions";
 
@@ -30,16 +31,19 @@ async function Detail({
   const { error } = await searchParams;
   const supabase = await createClient();
 
-  const [{ data: lead }, { data: events }, { data: client }, { data: templates }] = await Promise.all([
+  const [{ data: lead }, { data: events }, { data: client }, { data: templates }, auditRes] = await Promise.all([
     supabase.from("leads").select("*, sources(name)").eq("id", id).maybeSingle(),
     supabase.from("lead_events").select("id, type, payload, created_at").eq("lead_id", id).order("created_at", { ascending: false }).limit(50),
     supabase.from("clients").select("id").eq("lead_id", id).maybeSingle(),
     // Si la migración 0008 no está aplicada devuelve error y simplemente no se muestran plantillas
     supabase.from("message_templates").select("id, name, channel, subject, body, is_default").eq("active", true).order("is_default", { ascending: false }).order("created_at"),
+    // Última revisión del sitio web (si falta la migración 0011 devuelve error y se muestra el aviso)
+    supabase.from("site_audits").select("*").eq("lead_id", id).order("created_at", { ascending: false }).limit(1).maybeSingle(),
   ]);
   if (!lead) notFound();
 
-  const vars = templateVars(lead);
+  const audit = (auditRes.data as SiteAudit | null) ?? null;
+  const vars = templateVars(lead, undefined, audit?.status === "done" ? audit.headline : null);
   const contactItems: ContactItem[] = (templates ?? []).flatMap((t): ContactItem[] => {
     const body = renderTemplate(t.body, vars);
     if (t.channel === "whatsapp") {
@@ -97,6 +101,8 @@ ${body}`, isDefault: t.is_default }];
               <button className={btn.primary}>Guardar cambios</button>
             </form>
           </Card>
+
+          <SiteAuditCard leadId={lead.id} website={lead.website} audit={audit} tableMissing={isMissingTable(auditRes.error)} />
 
           <Card>
             <CardHeader title="Bitácora" hint="Cambios de estado y notas" />

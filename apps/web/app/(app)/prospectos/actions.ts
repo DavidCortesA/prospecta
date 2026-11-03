@@ -6,6 +6,7 @@ import { requireUser } from "@/lib/auth";
 import { LEAD_STATUSES, type LeadStatus } from "@/lib/constants";
 import { ensureClientFromLead } from "@/lib/clients";
 import { addDays, todayKey } from "@/lib/format";
+import { normalizeWebsite } from "@/lib/templates";
 
 const text = (fd: FormData, key: string) => {
   const v = fd.get(key);
@@ -128,4 +129,19 @@ export async function logContact(leadId: string, channel: "whatsapp" | "email", 
   const { data: lead } = await supabase.from("leads").select("status").eq("id", leadId).maybeSingle();
   if (lead?.status === "new") await supabase.from("leads").update({ status: "contacted" }).eq("id", leadId);
   revalidatePath("/", "layout");
+}
+
+/** Pide al bot que revise el sitio web del prospecto (el worker la toma en ~20 s). */
+export async function requestSiteAudit(leadId: string) {
+  const { supabase } = await requireUser();
+  const { data: lead } = await supabase.from("leads").select("website").eq("id", leadId).maybeSingle();
+  const url = normalizeWebsite(lead?.website);
+  if (!url) redirect(`/prospectos/${leadId}?error=${encodeURIComponent("Este prospecto no tiene un sitio web válido")}`);
+
+  const { data: open } = await supabase.from("site_audits").select("id").eq("lead_id", leadId).in("status", ["pending", "running"]).limit(1);
+  if (!open?.length) {
+    const { error } = await supabase.from("site_audits").insert({ lead_id: leadId, url });
+    if (error) redirect(`/prospectos/${leadId}?error=${encodeURIComponent(error.message)}`);
+  }
+  revalidatePath(`/prospectos/${leadId}`);
 }

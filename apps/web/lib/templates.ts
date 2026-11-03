@@ -16,6 +16,7 @@ export const TEMPLATE_VARIABLES = [
   ["{{giro}}", "Giro o actividad"],
   ["{{ciudad}}", "Municipio o ciudad"],
   ["{{negocio}}", "El nombre de tu empresa"],
+  ["{{hallazgo}}", "Problema de su sitio web (de la revisión)"],
 ] as const;
 
 /** "DENT CARE DENTISTA" -> "Dent Care Dentista"; si ya trae minúsculas se respeta. */
@@ -32,13 +33,14 @@ export function cityName(city: string | null | undefined): string {
   return niceName(parts[1] ?? parts[0] ?? "");
 }
 
-export function templateVars(lead: TemplateLead, business = businessName): Record<string, string> {
+export function templateVars(lead: TemplateLead, business = businessName, hallazgo?: string | null): Record<string, string> {
   return {
     nombre: niceName(lead.name),
     empresa: niceName(lead.company || lead.name),
     giro: (lead.notes ?? "").toLowerCase(),
     ciudad: cityName(lead.city) || "su ciudad",
     negocio: business,
+    hallazgo: hallazgo || "su sitio web tiene oportunidades de mejora",
   };
 }
 
@@ -65,3 +67,18 @@ export const whatsappLink = (phone: string | null | undefined, text: string): st
 
 export const mailtoLink = (email: string, subject: string, body: string) =>
   `mailto:${email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+
+/** Agrega https:// si falta y limpia lo que suele venir sucio en DENUE ("WWW.SITIO.COM"). La revisión valida la URL en el worker. */
+export function normalizeWebsite(raw: string | null | undefined): string | null {
+  let v = (raw ?? "").trim();
+  if (!v) return null;
+  v = v.split(/\s+/)[0];
+  if (!/^[a-z][a-z0-9+.-]*:\/\//i.test(v)) v = `https://${v}`;
+  try {
+    const u = new URL(v);
+    u.hostname = u.hostname.toLowerCase();
+    return u.toString();
+  } catch {
+    return null;
+  }
+}

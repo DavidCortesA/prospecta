@@ -45,15 +45,16 @@ export type Lead = {
   city: string | null;
   notes: string | null;
   status: LeadStatus;
+  website: string | null;
   next_followup: string | null;
   lat: number | null;
   lng: number | null;
   address: string | null;
 };
 
-const LEAD_COLUMNS = "id, name, company, email, phone, city, notes, status, next_followup, lat, lng, address";
+const LEAD_COLUMNS = "id, name, company, email, phone, city, notes, status, website, next_followup, lat, lng, address";
 
-export function leadKeyboard(lead: Pick<Lead, "id" | "lat" | "lng">, waUrl?: string | null): Keyboard {
+export function leadKeyboard(lead: Pick<Lead, "id" | "lat" | "lng" | "website">, waUrl?: string | null): Keyboard {
   const b = (status: LeadStatus) => ({ text: `${STATUS_EMOJI[status]} ${STATUS_LABEL[status]}`, callback_data: `s:${lead.id}:${STATUS_TO_CODE[status]}` });
   const rows: Keyboard = [
     [b("contacted"), b("replied")],
@@ -63,6 +64,7 @@ export function leadKeyboard(lead: Pick<Lead, "id" | "lat" | "lng">, waUrl?: str
   if (lead.lat != null && lead.lng != null) {
     rows.push([{ text: "📍 Cómo llegar", url: `https://www.google.com/maps/search/?api=1&query=${lead.lat},${lead.lng}` }]);
   }
+  if (lead.website) rows.push([{ text: "🔎 Revisar su sitio web", callback_data: `a:${lead.id}` }]);
   if (waUrl) rows.push([{ text: "📲 Abrir WhatsApp con mensaje", url: waUrl }]);
   if (config.dashboardUrl) rows.push([{ text: "Abrir en el dashboard", url: `${config.dashboardUrl}/prospectos/${lead.id}` }]);
   return rows;

@@ -10,7 +10,7 @@ import { escapeHtml, notify } from "./telegram.js";
 /** Máximo de avisos individuales por ejecución; el resto se resume en un solo mensaje. */
 const MAX_INDIVIDUAL_NOTIFICATIONS = 5;
 
-const LEAD_SELECT = "id, name, company, email, phone, city, notes, status, next_followup, lat, lng, address";
+const LEAD_SELECT = "id, name, company, email, phone, city, notes, status, website, next_followup, lat, lng, address";
 
 /** Un duplicado por id externo completa la ubicación del prospecto ya guardado (si aún no la tiene). */
 async function enrichExisting(sourceId: string, lead: LeadInput) {

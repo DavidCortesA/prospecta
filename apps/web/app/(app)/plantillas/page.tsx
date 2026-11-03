@@ -9,7 +9,7 @@ export const metadata = { title: "Plantillas" };
 
 type Template = { id: string; name: string; channel: "whatsapp" | "email"; subject: string | null; body: string; is_default: boolean; active: boolean };
 
-const SAMPLE = templateVars({ name: "DENT CARE DENTISTA", company: "DENT CARE DENTISTA", city: "MONTERREY,Monterrey,NUEVO LEÓN", notes: "Consultorios dentales del sector privado" });
+const SAMPLE = templateVars({ name: "DENT CARE DENTISTA", company: "DENT CARE DENTISTA", city: "MONTERREY,Monterrey,NUEVO LEÓN", notes: "Consultorios dentales del sector privado" }, undefined, "su sitio tarda 6 s en cargar en celular y no está adaptado a celulares");
 
 export default function Page(props: PageProps<"/plantillas">) {
   return (

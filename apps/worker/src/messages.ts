@@ -25,13 +25,14 @@ export function cityName(city: string | null | undefined): string {
   return niceName(parts[1] ?? parts[0] ?? "");
 }
 
-export function templateVars(lead: TemplateLead): Record<string, string> {
+export function templateVars(lead: TemplateLead, hallazgo?: string | null): Record<string, string> {
   return {
     nombre: niceName(lead.name),
     empresa: niceName(lead.company || lead.name),
     giro: (lead.notes ?? "").toLowerCase(),
     ciudad: cityName(lead.city) || "su ciudad",
     negocio: config.businessName,
+    hallazgo: hallazgo || "su sitio web tiene oportunidades de mejora",
   };
 }
 
@@ -77,9 +78,23 @@ async function defaultWhatsappBody(): Promise<string | null> {
 }
 
 /** Enlace de WhatsApp con la plantilla por defecto ya llena para este prospecto (o null si no aplica). */
-export async function whatsappUrlFor(lead: TemplateLead & { phone: string | null }): Promise<string | null> {
+/** Frase de la última auditoría terminada del prospecto (para la variable {{hallazgo}}). */
+async function latestHeadline(leadId: string): Promise<string | null> {
+  const { data, error } = await db
+    .from("site_audits")
+    .select("headline")
+    .eq("lead_id", leadId)
+    .eq("status", "done")
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  return error ? null : ((data?.headline as string | undefined) ?? null);
+}
+
+export async function whatsappUrlFor(lead: TemplateLead & { id: string; phone: string | null }): Promise<string | null> {
   if (!lead.phone) return null;
   const body = await defaultWhatsappBody();
   if (!body) return null;
-  return whatsappLink(lead.phone, renderTemplate(body, templateVars(lead)));
+  const needsAudit = body.includes("{{hallazgo}}");
+  return whatsappLink(lead.phone, renderTemplate(body, templateVars(lead, needsAudit ? await latestHeadline(lead.id) : null)));
 }

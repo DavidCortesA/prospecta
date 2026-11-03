@@ -3,6 +3,7 @@ import { pollRunRequests, syncSchedules } from "./scheduler.js";
 import { startTelegramBot } from "./bot.js";
 import { startDigest } from "./digest.js";
 import { pollQuoteEvents } from "./quotes.js";
+import { pollSiteAudits } from "./audit/runner.js";
 import { notify } from "./telegram.js";
 
 const SYNC_EVERY_MS = 5 * 60 * 1000;
@@ -14,6 +15,7 @@ const syncTimer = setInterval(() => syncSchedules().catch(console.error), SYNC_E
 const pollTimer = setInterval(() => {
   pollRunRequests().catch(console.error);
   pollQuoteEvents().catch(console.error);
+  pollSiteAudits().catch(console.error);
 }, POLL_EVERY_MS);
 const stopBot = startTelegramBot();
 const digestWorker = await startDigest();
