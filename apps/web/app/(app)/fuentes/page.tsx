@@ -1,10 +1,11 @@
 import { Suspense } from "react";
-import { Pause, Play, PlayCircle, Plus, Trash2 } from "lucide-react";
+import { MapPinned, Pause, Play, PlayCircle, Plus, RotateCcw, Trash2 } from "lucide-react";
 import { createClient } from "@/lib/server";
 import { dateTime, timeAgo } from "@/lib/format";
 import { Badge, Card, EmptyState, PageHeader, btn, inputCls } from "@/components/ui-kit";
 import { cn } from "@/lib/utils";
-import { createSource, deleteSource, runSourceNow, toggleSource, updateSource } from "./actions";
+import { CRON_PRESETS as WIZARD_CRONS, DENUE_GIROS, DENUE_MUNICIPIOS, DENUE_MUNICIPIOS_ORDER } from "@/lib/denue";
+import { createDenueSource, createSource, deleteSource, resetCursor, runSourceNow, toggleSource, updateSource } from "./actions";
 
 export const metadata = { title: "Fuentes" };
 
@@ -113,6 +114,78 @@ async function Sources({ searchParams }: { searchParams: PageProps<"/fuentes">["
         ))}
       </datalist>
 
+      <details className="group rounded-2xl border border-primary/30 bg-primary/5 shadow-sm" open={!sources?.length}>
+        <summary className="flex cursor-pointer list-none items-center gap-2 px-5 py-4 text-sm font-bold">
+          <MapPinned className="size-4 text-primary" /> Asistente DENUE · negocios reales de Nuevo León
+        </summary>
+        <form action={createDenueSource} className="grid gap-3 border-t border-primary/20 p-5 sm:grid-cols-2">
+          <p className="text-xs text-muted-foreground sm:col-span-2">
+            Elige el giro y el municipio y se arma solo la fuente (URL, mapeo y filtros). Necesita la variable <code>DENUE_TOKEN</code> en el worker.
+          </p>
+          <label className="space-y-1.5">
+            <span className="text-xs font-semibold text-muted-foreground">Giro</span>
+            <select name="giro" defaultValue="621211" className={inputCls}>
+              {DENUE_GIROS.map((g) => (
+                <option key={g.code} value={g.code}>
+                  {g.label}
+                </option>
+              ))}
+              <option value="">Otro: usar palabra clave →</option>
+            </select>
+          </label>
+          <label className="space-y-1.5">
+            <span className="text-xs font-semibold text-muted-foreground">Palabra clave (solo si eliges "Otro")</span>
+            <input name="keyword" placeholder="taller eléctrico, lavandería…" className={inputCls} />
+          </label>
+          <label className="space-y-1.5">
+            <span className="text-xs font-semibold text-muted-foreground">Municipio</span>
+            <select name="municipio" defaultValue="039" className={inputCls}>
+              <option value="">Todo Nuevo León</option>
+              {DENUE_MUNICIPIOS_ORDER.map((c) => (
+                <option key={c} value={c}>
+                  {DENUE_MUNICIPIOS[c]}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="space-y-1.5">
+            <span className="text-xs font-semibold text-muted-foreground">Frecuencia</span>
+            <select name="cron" defaultValue="0 9 * * *" className={inputCls}>
+              {WIZARD_CRONS.map((c) => (
+                <option key={c.value} value={c.value}>
+                  {c.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="flex items-start gap-2 text-sm">
+            <input type="checkbox" name="only_no_website" defaultChecked className="mt-0.5 size-4 accent-[var(--primary)]" />
+            <span>
+              <strong>Solo negocios sin sitio web</strong>
+              <span className="block text-xs text-muted-foreground">Los mejores prospectos si vendes páginas o sistemas.</span>
+            </span>
+          </label>
+          <label className="flex items-start gap-2 text-sm">
+            <input type="checkbox" name="only_contactable" defaultChecked className="mt-0.5 size-4 accent-[var(--primary)]" />
+            <span>
+              <strong>Solo con teléfono o correo</strong>
+              <span className="block text-xs text-muted-foreground">Si no hay forma de contactarlos, no se guardan.</span>
+            </span>
+          </label>
+          <label className="space-y-1.5">
+            <span className="text-xs font-semibold text-muted-foreground">Negocios revisados por ejecución</span>
+            <select name="page_size" defaultValue="50" className={inputCls}>
+              <option value="25">25</option>
+              <option value="50">50</option>
+              <option value="100">100</option>
+            </select>
+          </label>
+          <div className="flex items-end sm:justify-end">
+            <button className={btn.primary}>Crear fuente DENUE</button>
+          </div>
+        </form>
+      </details>
+
       <details className="group rounded-2xl border bg-card shadow-sm">
         <summary className="flex cursor-pointer list-none items-center gap-2 px-5 py-4 text-sm font-bold">
           <Plus className="size-4 text-primary" /> Nueva fuente
@@ -170,6 +243,13 @@ async function Sources({ searchParams }: { searchParams: PageProps<"/fuentes">["
                       <PlayCircle className="size-3.5" /> Ejecutar ahora
                     </button>
                   </form>
+                  {Number((s.config as { cursor?: number })?.cursor ?? 0) > 0 && (
+                    <form action={resetCursor.bind(null, s.id)}>
+                      <button title="Volver a la primera página de resultados" className={`${btn.ghost} text-xs`}>
+                        <RotateCcw className="size-3.5" /> Reiniciar ({Number((s.config as { cursor?: number }).cursor)})
+                      </button>
+                    </form>
+                  )}
                   <form action={toggleSource.bind(null, s.id, !s.enabled)}>
                     <button className={`${btn.ghost} text-xs`}>
                       {s.enabled ? <Pause className="size-3.5" /> : <Play className="size-3.5" />}

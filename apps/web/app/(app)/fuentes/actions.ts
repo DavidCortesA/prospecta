@@ -3,6 +3,7 @@
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { requireUser } from "@/lib/auth";
+import { buildDenueSource } from "@/lib/denue";
 
 const text = (fd: FormData, key: string) => {
   const v = fd.get(key);
@@ -85,6 +86,41 @@ export async function runSourceNow(id: string) {
 export async function deleteSource(id: string) {
   const { supabase } = await requireUser();
   const { error } = await supabase.from("sources").delete().eq("id", id);
+  if (error) throw new Error(error.message);
+  revalidatePath("/fuentes");
+}
+
+/** Asistente DENUE: arma la URL y la configuración a partir de giro, municipio y filtros. */
+export async function createDenueSource(formData: FormData) {
+  const { supabase } = await requireUser();
+  let source;
+  try {
+    source = buildDenueSource({
+      giro: text(formData, "giro") ?? "",
+      keyword: text(formData, "keyword") ?? "",
+      municipio: text(formData, "municipio") ?? "",
+      onlyNoWebsite: formData.get("only_no_website") === "on",
+      onlyContactable: formData.get("only_contactable") === "on",
+      pageSize: Number(text(formData, "page_size") ?? 50),
+      cron: text(formData, "cron") ?? "0 9 * * *",
+    });
+  } catch (e) {
+    redirect(`/fuentes?error=${encodeURIComponent(e instanceof Error ? e.message : "Datos inválidos")}`);
+  }
+  const { error } = await supabase
+    .from("sources")
+    .insert({ name: source.name, kind: "api", url: source.url, cron: source.cron, config: source.config, enabled: true });
+  if (error) redirect(`/fuentes?error=${encodeURIComponent(error.message)}`);
+  revalidatePath("/fuentes");
+  redirect("/fuentes");
+}
+
+/** Vuelve a la primera página de resultados (útil tras cambiar los datos que se guardan de cada negocio). */
+export async function resetCursor(id: string) {
+  const { supabase } = await requireUser();
+  const { data } = await supabase.from("sources").select("config").eq("id", id).single();
+  const config = { ...((data?.config as Record<string, unknown>) ?? {}), cursor: 0 };
+  const { error } = await supabase.from("sources").update({ config }).eq("id", id);
   if (error) throw new Error(error.message);
   revalidatePath("/fuentes");
 }

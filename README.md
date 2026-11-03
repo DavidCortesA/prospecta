@@ -63,7 +63,8 @@ Es una PWA: se puede instalar en el celular o escritorio. Variable opcional en V
 
 1. Solicita un token gratuito de DENUE en INEGI y agrégalo como variable `DENUE_TOKEN` en el servicio del worker (Railway). El token no se guarda en la base de datos.
 2. Ejecuta `supabase/migrations/0006_lead_external_id.sql`.
-3. En **Fuentes → Nueva fuente** crea una fuente tipo API:
+3. **Forma fácil:** en **Fuentes → Asistente DENUE** eliges el giro (dentistas, restaurantes, abogados, talleres…), el municipio de Nuevo León (los 51), la frecuencia y los filtros, y la fuente se arma sola. También puedes usar una palabra clave para giros que no estén en la lista.
+   **A mano:** en **Fuentes → Nueva fuente** crea una fuente tipo API:
    - **URL:** `https://www.inegi.org.mx/app/api/denue/v1/consulta/BuscarEntidad/dentista/19/{{from}}/{{to}}/{{env.DENUE_TOKEN}}` (`19` = Nuevo León; cambia `dentista` por el giro que buscas)
    - **Cron:** por ejemplo `0 */3 * * *`
    - **Configuración:**
@@ -121,4 +122,4 @@ El colector web con Playwright solo corre si la fuente tiene `scraping_allowed =
 
 ## Versiones
 
-Se usan tags semánticos: `v0.1.0` base web + auth · `v0.2.0` esquema DB + Redis · `v0.3.0` worker · `v0.4.0` dashboard · `v0.5.0` despliegue (Dockerfile del worker + Railway/Vercel) · `v0.6.0` diseño, PWA y resumen · `v0.7.0` prospectos, pipeline y fuentes · `v0.8.0` clientes, proyectos y cierres · `v0.9.0` catálogo y cotizaciones · `v0.10.0` fuente DENUE (paginación, filtros, score y avisos agrupados) · `v0.11.0` control de prospectos desde Telegram · `v0.12.0` seguimientos y resumen diario · `v0.13.0` plantillas de WhatsApp y correo · `v0.14.0` cotización pública con aceptar.
+Se usan tags semánticos: `v0.1.0` base web + auth · `v0.2.0` esquema DB + Redis · `v0.3.0` worker · `v0.4.0` dashboard · `v0.5.0` despliegue (Dockerfile del worker + Railway/Vercel) · `v0.6.0` diseño, PWA y resumen · `v0.7.0` prospectos, pipeline y fuentes · `v0.8.0` clientes, proyectos y cierres · `v0.9.0` catálogo y cotizaciones · `v0.10.0` fuente DENUE (paginación, filtros, score y avisos agrupados) · `v0.11.0` control de prospectos desde Telegram · `v0.12.0` seguimientos y resumen diario · `v0.13.0` plantillas de WhatsApp y correo · `v0.14.0` cotización pública con aceptar · `v0.15.0` asistente DENUE.
