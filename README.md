@@ -57,10 +57,28 @@ Es una PWA: se puede instalar en el celular o escritorio. Variable opcional en V
 - El worker ejecuta el colector según `kind` (`api` o `web`), inserta prospectos sin duplicar (por email o sitio web), registra la ejecución en `job_runs` y avisa por Telegram.
 - El dashboard lee todo desde Supabase con RLS (solo usuarios autenticados).
 
+## Prospectos reales de Nuevo León (DENUE de INEGI)
+
+[DENUE](https://www.inegi.org.mx/servicios/api_denue.html) es el directorio oficial y gratuito de negocios de México (nombre, giro, teléfono, correo, sitio web). Pasos:
+
+1. Solicita un token gratuito de DENUE en INEGI y agrégalo como variable `DENUE_TOKEN` en el servicio del worker (Railway). El token no se guarda en la base de datos.
+2. Ejecuta `supabase/migrations/0006_lead_external_id.sql`.
+3. En **Fuentes → Nueva fuente** crea una fuente tipo API:
+   - **URL:** `https://www.inegi.org.mx/app/api/denue/v1/consulta/BuscarEntidad/dentista/19/{{from}}/{{to}}/{{env.DENUE_TOKEN}}` (`19` = Nuevo León; cambia `dentista` por el giro que buscas)
+   - **Cron:** por ejemplo `0 */3 * * *`
+   - **Configuración:**
+     ```json
+     {"pageSize":50,"filter":{"requireAny":["email","phone"],"missing":["website"]},"map":{"external_id":"Id","name":"Nombre","company":"Razon_social","email":"Correo_e","phone":"Telefono","website":"Sitio_internet","city":"Ubicacion","notes":"Clase_actividad"}}
+     ```
+
+Cada ejecución trae la siguiente página de `pageSize` registros (el cursor avanza solo y vuelve a empezar al terminar). `filter` guarda solo negocios con teléfono o correo **y sin sitio web** (los mejores prospectos para vender una web). Los prospectos nuevos reciben un score automático (contactable + sin sitio) y llegan a Telegram: hasta 5 avisos individuales por ejecución y un resumen del resto.
+
+Respeta la ley de datos personales (LFPDPPP): contacta negocios con fines comerciales legítimos y atiende cualquier solicitud de no contacto.
+
 ## Scraping responsable
 
 El colector web con Playwright solo corre si la fuente tiene `scraping_allowed = true` (revisaste sus términos de uso) **y** `robots.txt` permite la URL para el user-agent del bot. Solo extrae datos de contacto públicos (`mailto:` / `tel:`). Configura `USER_AGENT` con un contacto real.
 
 ## Versiones
 
-Se usan tags semánticos: `v0.1.0` base web + auth · `v0.2.0` esquema DB + Redis · `v0.3.0` worker · `v0.4.0` dashboard · `v0.5.0` despliegue (Dockerfile del worker + Railway/Vercel) · `v0.6.0` diseño, PWA y resumen · `v0.7.0` prospectos, pipeline y fuentes · `v0.8.0` clientes, proyectos y cierres · `v0.9.0` catálogo y cotizaciones.
+Se usan tags semánticos: `v0.1.0` base web + auth · `v0.2.0` esquema DB + Redis · `v0.3.0` worker · `v0.4.0` dashboard · `v0.5.0` despliegue (Dockerfile del worker + Railway/Vercel) · `v0.6.0` diseño, PWA y resumen · `v0.7.0` prospectos, pipeline y fuentes · `v0.8.0` clientes, proyectos y cierres · `v0.9.0` catálogo y cotizaciones · `v0.10.0` fuente DENUE (paginación, filtros, score y avisos agrupados).

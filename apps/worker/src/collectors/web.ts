@@ -1,5 +1,5 @@
 import { chromium } from "playwright";
-import type { LeadInput, Source } from "../db.js";
+import type { CollectResult, Source } from "../db.js";
 import { config } from "../config.js";
 import { isAllowedByRobots } from "./robots.js";
 
@@ -8,7 +8,7 @@ import { isAllowedByRobots } from "./robots.js";
  * `scraping_allowed` (términos del sitio revisados) y robots.txt lo permite.
  * Extrae datos de contacto públicos de la página (mailto:/tel:) como un prospecto.
  */
-export async function collectWeb(source: Source): Promise<LeadInput[]> {
+export async function collectWeb(source: Source): Promise<CollectResult> {
   if (!source.url) throw new Error("La fuente web no tiene URL");
   if (!source.scraping_allowed) {
     throw new Error("Scraping no autorizado para esta fuente (scraping_allowed = false)");
@@ -34,18 +34,20 @@ export async function collectWeb(source: Source): Promise<LeadInput[]> {
       };
     });
 
-    if (!data.emails.length && !data.phones.length) return [];
+    if (!data.emails.length && !data.phones.length) return { leads: [] };
 
-    return [
-      {
-        name: data.title || source.name,
-        company: data.title || null,
-        email: data.emails[0] ?? null,
-        phone: data.phones[0] ?? null,
-        website: source.url,
-        raw: { emails: data.emails, phones: data.phones },
-      },
-    ];
+    return {
+      leads: [
+        {
+          name: data.title || source.name,
+          company: data.title || null,
+          email: data.emails[0] ?? null,
+          phone: data.phones[0] ?? null,
+          website: source.url,
+          raw: { emails: data.emails, phones: data.phones },
+        },
+      ],
+    };
   } finally {
     await browser.close();
   }

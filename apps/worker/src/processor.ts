@@ -1,20 +1,26 @@
 import { Worker } from "bullmq";
 import { COLLECT_QUEUE, connection, type CollectJob } from "./queues.js";
-import { db, type LeadInput, type Source } from "./db.js";
+import { db, type CollectResult, type Source } from "./db.js";
 import { collectApi } from "./collectors/api.js";
 import { collectWeb } from "./collectors/web.js";
+import { leadScore } from "./score.js";
 import { escapeHtml, notify } from "./telegram.js";
 
-async function collect(source: Source): Promise<LeadInput[]> {
+/** Máximo de avisos individuales por ejecución; el resto se resume en un solo mensaje. */
+const MAX_INDIVIDUAL_NOTIFICATIONS = 5;
+
+async function collect(source: Source): Promise<CollectResult> {
   switch (source.kind) {
     case "api":
       return collectApi(source);
     case "web":
       return collectWeb(source);
     default:
-      return []; // csv / manual se cargan desde el dashboard
+      return { leads: [] }; // csv / manual se cargan desde el dashboard
   }
 }
+
+type Inserted = { name: string; company: string | null; email: string | null; phone: string | null; city: string | null; notes: string | null };
 
 async function process(sourceId: string) {
   const { data: source, error } = await db.from("sources").select("*").eq("id", sourceId).single<Source>();
@@ -28,39 +34,37 @@ async function process(sourceId: string) {
     .single();
 
   try {
-    const found = await collect(source);
-    let inserted = 0;
+    const { leads: found, nextConfig } = await collect(source);
+    const created: Inserted[] = [];
 
     for (const lead of found) {
-      const row = { ...lead, source_id: source.id };
-      // Se omiten duplicados (índices únicos por email / website).
+      const row: Record<string, unknown> = { ...lead, score: lead.score ?? leadScore(lead), source_id: source.id };
+      // Sin id externo no se envía la columna (así funciona aunque falte la migración 0006).
+      if (row.external_id == null) delete row.external_id;
+      // Se omiten duplicados (índices únicos por email / website / external_id).
       const { data, error: insertError } = await db
         .from("leads")
         .insert(row)
-        .select("id, name, company, email, phone")
+        .select("name, company, email, phone, city, notes")
         .maybeSingle();
 
       if (insertError) {
         if (insertError.code === "23505") continue;
         throw insertError;
       }
-      if (data) {
-        inserted++;
-        await notify(
-          `🆕 <b>Nuevo prospecto</b>\n${escapeHtml(data.name)}` +
-            (data.company ? ` — ${escapeHtml(data.company)}` : "") +
-            (data.email ? `\n✉️ ${escapeHtml(data.email)}` : "") +
-            (data.phone ? `\n📞 ${escapeHtml(data.phone)}` : "") +
-            `\nFuente: ${escapeHtml(source.name)}`
-        );
-      }
+      if (data) created.push(data as Inserted);
     }
 
-    await db.from("sources").update({ last_run_at: new Date().toISOString() }).eq("id", source.id);
+    const patch: Record<string, unknown> = { last_run_at: new Date().toISOString() };
+    if (nextConfig) patch.config = { ...source.config, ...nextConfig };
+    await db.from("sources").update(patch).eq("id", source.id);
+
     await db
       .from("job_runs")
-      .update({ status: "done", found: found.length, inserted, finished_at: new Date().toISOString() })
+      .update({ status: "done", found: found.length, inserted: created.length, finished_at: new Date().toISOString() })
       .eq("id", run?.id);
+
+    await announce(source.name, created);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     await db
@@ -69,6 +73,24 @@ async function process(sourceId: string) {
       .eq("id", run?.id);
     await notify(`⚠️ <b>Falló la fuente</b> ${escapeHtml(source.name)}\n${escapeHtml(message)}`);
     throw err;
+  }
+}
+
+async function announce(sourceName: string, created: Inserted[]) {
+  for (const l of created.slice(0, MAX_INDIVIDUAL_NOTIFICATIONS)) {
+    await notify(
+      `🆕 <b>Nuevo prospecto</b>\n${escapeHtml(l.name)}` +
+        (l.company && l.company !== l.name ? ` — ${escapeHtml(l.company)}` : "") +
+        (l.notes ? `\n🏷️ ${escapeHtml(l.notes.slice(0, 80))}` : "") +
+        (l.city ? `\n📍 ${escapeHtml(l.city)}` : "") +
+        (l.phone ? `\n📞 ${escapeHtml(l.phone)}` : "") +
+        (l.email ? `\n✉️ ${escapeHtml(l.email)}` : "") +
+        `\nFuente: ${escapeHtml(sourceName)}`
+    );
+  }
+  const rest = created.length - MAX_INDIVIDUAL_NOTIFICATIONS;
+  if (rest > 0) {
+    await notify(`➕ ${rest} prospectos más de <b>${escapeHtml(sourceName)}</b>. Míralos en el dashboard.`);
   }
 }
 

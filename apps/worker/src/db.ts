@@ -23,5 +23,15 @@ export type LeadInput = {
   phone?: string | null;
   website?: string | null;
   city?: string | null;
+  notes?: string | null;
+  score?: number;
+  /** Id del registro en la fuente original (evita duplicados aunque no tenga correo ni sitio) */
+  external_id?: string | null;
   raw?: Record<string, unknown>;
+};
+
+/** Lo que devuelve un colector: prospectos y, opcionalmente, cambios a guardar en `sources.config` (p. ej. el cursor de paginación). */
+export type CollectResult = {
+  leads: LeadInput[];
+  nextConfig?: Record<string, unknown>;
 };
