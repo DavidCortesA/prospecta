@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { Suspense, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
@@ -89,7 +89,9 @@ export function AppShell({ children, footer }: { children: ReactNode; footer: Re
       {/* Sidebar escritorio */}
       <aside className="no-print sticky top-0 hidden h-screen flex-col bg-sidebar text-sidebar-foreground lg:flex">
         <Brand />
-        <NavList />
+        <Suspense fallback={<nav className="flex-1" />}>
+          <NavList />
+        </Suspense>
         <div className="border-t border-sidebar-border p-4">{footer}</div>
       </aside>
 
@@ -117,7 +119,9 @@ export function AppShell({ children, footer }: { children: ReactNode; footer: Re
                 <X className="size-5" />
               </button>
             </div>
-            <NavList onNavigate={() => setOpen(false)} />
+            <Suspense fallback={<nav className="flex-1" />}>
+              <NavList onNavigate={() => setOpen(false)} />
+            </Suspense>
             <div className="border-t border-sidebar-border p-4">{footer}</div>
           </div>
         </div>

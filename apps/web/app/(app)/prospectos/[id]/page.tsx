@@ -1,0 +1,176 @@
+import { Suspense } from "react";
+import Link from "next/link";
+import { notFound } from "next/navigation";
+import { ArrowLeft, FileText, Trophy, XCircle } from "lucide-react";
+import { createClient } from "@/lib/server";
+import { LEAD_STATUSES, STATUS_LABEL, type LeadStatus } from "@/lib/constants";
+import { dateTime, money, timeAgo } from "@/lib/format";
+import { Card, CardHeader, LinkButton, StatusBadge, btn, inputCls } from "@/components/ui-kit";
+import { LeadFields } from "../lead-fields";
+import { addNote, changeStatusForm, deleteLead, updateLead } from "../actions";
+
+export default function Page(props: PageProps<"/prospectos/[id]">) {
+  return (
+    <Suspense fallback={<div className="h-96 animate-pulse rounded-2xl bg-secondary" />}>
+      <Detail params={props.params} searchParams={props.searchParams} />
+    </Suspense>
+  );
+}
+
+async function Detail({
+  params,
+  searchParams,
+}: {
+  params: PageProps<"/prospectos/[id]">["params"];
+  searchParams: PageProps<"/prospectos/[id]">["searchParams"];
+}) {
+  const { id } = await params;
+  const { error } = await searchParams;
+  const supabase = await createClient();
+
+  const [{ data: lead }, { data: events }, { data: client }] = await Promise.all([
+    supabase.from("leads").select("*, sources(name)").eq("id", id).maybeSingle(),
+    supabase.from("lead_events").select("id, type, payload, created_at").eq("lead_id", id).order("created_at", { ascending: false }).limit(50),
+    supabase.from("clients").select("id").eq("lead_id", id).maybeSingle(),
+  ]);
+  if (!lead) notFound();
+
+  const status = lead.status as LeadStatus;
+  const open = !["won", "lost"].includes(status);
+
+  return (
+    <div className="space-y-6">
+      <Link href="/prospectos" className="inline-flex items-center gap-1.5 text-sm font-medium text-muted-foreground hover:text-foreground">
+        <ArrowLeft className="size-4" /> Prospectos
+      </Link>
+
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <div className="flex flex-wrap items-center gap-3">
+            <h1 className="text-2xl font-extrabold tracking-tight">{lead.name}</h1>
+            <StatusBadge status={lead.status} />
+          </div>
+          <p className="mt-1 text-sm text-muted-foreground">
+            {lead.company ?? "Sin empresa"} · {(lead.sources as { name?: string } | null)?.name ?? "Manual"} · creado {timeAgo(lead.created_at)}
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <LinkButton href={`/cotizaciones/nueva?lead=${lead.id}`}>
+            <FileText className="size-4" /> Crear cotización
+          </LinkButton>
+          {client && (
+            <LinkButton href={`/clientes/${client.id}`} variant="outline">
+              Ver cliente
+            </LinkButton>
+          )}
+        </div>
+      </div>
+
+      {typeof error === "string" && <p className="rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</p>}
+
+      <div className="grid gap-6 lg:grid-cols-3">
+        <div className="space-y-6 lg:col-span-2">
+          <Card>
+            <CardHeader title="Datos del prospecto" />
+            <form action={updateLead.bind(null, lead.id)} className="space-y-5 p-5">
+              <LeadFields d={lead} withDealValue />
+              <button className={btn.primary}>Guardar cambios</button>
+            </form>
+          </Card>
+
+          <Card>
+            <CardHeader title="Bitácora" hint="Cambios de estado y notas" />
+            <form action={addNote.bind(null, lead.id)} className="flex gap-2 border-b p-4">
+              <input name="note" placeholder="Agrega una nota (llamada, acuerdo, siguiente paso…)" className={inputCls} />
+              <button className={btn.outline}>Añadir</button>
+            </form>
+            <ul className="divide-y">
+              {(events ?? []).map((e) => (
+                <li key={e.id} className="px-5 py-3 text-sm">
+                  <p>{describe(e)}</p>
+                  <p className="text-xs text-muted-foreground">{dateTime(e.created_at)}</p>
+                </li>
+              ))}
+              {!events?.length && <li className="px-5 py-6 text-center text-sm text-muted-foreground">Sin movimientos todavía.</li>}
+            </ul>
+          </Card>
+        </div>
+
+        <div className="space-y-6">
+          <Card>
+            <CardHeader title="Mover de etapa" />
+            <div className="space-y-3 p-5">
+              <div className="flex flex-wrap gap-2">
+                {LEAD_STATUSES.filter((s) => !["won", "lost"].includes(s)).map((s) => (
+                  <form key={s} action={changeStatusForm.bind(null, lead.id, s as LeadStatus)}>
+                    <button
+                      disabled={s === status}
+                      className={`${btn.outline} px-3 py-1.5 text-xs ${s === status ? "ring-2 ring-primary" : ""}`}
+                    >
+                      {STATUS_LABEL[s as LeadStatus]}
+                    </button>
+                  </form>
+                ))}
+              </div>
+
+              <form action={changeStatusForm.bind(null, lead.id, "won")} className="space-y-2 rounded-xl bg-emerald-50 p-3">
+                <p className="flex items-center gap-1.5 text-xs font-bold text-emerald-800">
+                  <Trophy className="size-3.5" /> Se concretó
+                </p>
+                <input name="deal_value" type="number" step="0.01" min={0} defaultValue={lead.deal_value ?? ""} placeholder="Valor del trato (opcional)" className={inputCls} />
+                <button disabled={status === "won"} className={`${btn.primary} w-full bg-emerald-600`}>
+                  {status === "won" ? "Ya está ganado" : "Marcar como ganado"}
+                </button>
+                {open && <p className="text-[11px] text-emerald-800/80">Se crea el cliente para seguir su proyecto.</p>}
+              </form>
+
+              <form action={changeStatusForm.bind(null, lead.id, "lost")} className="space-y-2 rounded-xl bg-rose-50 p-3">
+                <p className="flex items-center gap-1.5 text-xs font-bold text-rose-800">
+                  <XCircle className="size-3.5" /> No se concretó
+                </p>
+                <input name="lost_reason" defaultValue={lead.lost_reason ?? ""} placeholder="Motivo (precio, sin respuesta…)" className={inputCls} />
+                <button disabled={status === "lost"} className={`${btn.danger} w-full`}>
+                  {status === "lost" ? "Ya está perdido" : "Marcar como perdido"}
+                </button>
+              </form>
+            </div>
+          </Card>
+
+          <Card>
+            <CardHeader title="Resumen" />
+            <dl className="space-y-2.5 p-5 text-sm">
+              <Row label="Score" value={String(lead.score)} />
+              <Row label="Valor del trato" value={lead.deal_value != null ? money(lead.deal_value) : "—"} />
+              <Row label="Cerrado" value={lead.closed_at ? dateTime(lead.closed_at) : "—"} />
+              {lead.lost_reason && <Row label="Motivo" value={lead.lost_reason} />}
+            </dl>
+          </Card>
+
+          <form action={deleteLead.bind(null, lead.id)}>
+            <button className={`${btn.ghost} text-rose-600 hover:text-rose-700`}>Eliminar prospecto</button>
+          </form>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Row({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex justify-between gap-3">
+      <dt className="text-muted-foreground">{label}</dt>
+      <dd className="text-right font-semibold">{value}</dd>
+    </div>
+  );
+}
+
+function describe(e: { type: string; payload: Record<string, unknown> }) {
+  if (e.type === "created") return "Prospecto creado";
+  if (e.type === "note") return `📝 ${String(e.payload.text ?? "")}`;
+  if (e.type === "status_change") {
+    const from = STATUS_LABEL[e.payload.from as LeadStatus] ?? String(e.payload.from);
+    const to = STATUS_LABEL[e.payload.to as LeadStatus] ?? String(e.payload.to);
+    return `Cambió de ${from} a ${to}`;
+  }
+  return e.type;
+}
