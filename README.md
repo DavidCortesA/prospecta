@@ -14,7 +14,8 @@ Bot de captación de clientes con dashboard.
 
 ## Puesta en marcha
 
-1. **Base de datos**: ejecuta `supabase/migrations/0001_init.sql` en el SQL Editor de Supabase y crea un usuario en Authentication → Users.
+1. **Base de datos**: en el SQL Editor de Supabase ejecuta, en orden, los archivos de `supabase/migrations/`:
+   `0001_init` → `0002_lead_management` → `0003_clients_projects` → `0004_catalog_quotes` (y, opcional, `0005_seed_features_example` con features de ejemplo). Crea un usuario en Authentication → Users.
 2. **Redis**: `docker compose up -d`
 3. **Web**: copia `apps/web/.env.example` a `.env.local`, completa los valores y ejecuta
    ```bash
@@ -35,6 +36,21 @@ Bot de captación de clientes con dashboard.
 
 El Redis puede ser cualquier proveedor: el worker solo lee `REDIS_URL` (usa `rediss://` si es TLS).
 
+## Qué incluye el dashboard
+
+| Sección | Para qué sirve |
+| --- | --- |
+| Resumen | Saludo con lo que hay que atender, métricas, embudo, prospectos por día, mejores fuentes y actividad del bot |
+| Prospectos | Lista con búsqueda y filtros, alta manual, detalle con bitácora y notas |
+| Pipeline | Kanban con arrastrar y soltar entre etapas |
+| Cierres | Qué se concretó y qué no, tasa de cierre, valor ganado y motivos de pérdida |
+| Cotizaciones | Cotizador: eliges las features que pidió el cliente y se calcula el total; imprime/PDF o copia el resumen |
+| Catálogo | Features con precio que alimentan las cotizaciones |
+| Clientes | Proyectos con hitos y avance; se crean solos al ganar un prospecto o a mano |
+| Fuentes | Crear, editar, pausar y "ejecutar ahora" las fuentes del bot |
+
+Es una PWA: se puede instalar en el celular o escritorio. Variable opcional en Vercel: `NEXT_PUBLIC_BUSINESS_NAME` (nombre que aparece en las cotizaciones).
+
 ## Cómo funciona
 
 - Cada fila de `sources` con `enabled = true` y `cron` definido se programa como cron job en BullMQ.
@@ -47,4 +63,4 @@ El colector web con Playwright solo corre si la fuente tiene `scraping_allowed =
 
 ## Versiones
 
-Se usan tags semánticos: `v0.1.0` base web + auth · `v0.2.0` esquema DB + Redis · `v0.3.0` worker · `v0.4.0` dashboard · `v0.5.0` despliegue (Dockerfile del worker + Railway/Vercel).
+Se usan tags semánticos: `v0.1.0` base web + auth · `v0.2.0` esquema DB + Redis · `v0.3.0` worker · `v0.4.0` dashboard · `v0.5.0` despliegue (Dockerfile del worker + Railway/Vercel) · `v0.6.0` diseño, PWA y resumen · `v0.7.0` prospectos, pipeline y fuentes · `v0.8.0` clientes, proyectos y cierres · `v0.9.0` catálogo y cotizaciones.

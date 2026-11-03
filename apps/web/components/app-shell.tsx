@@ -85,7 +85,7 @@ export function AppShell({ children, footer }: { children: ReactNode; footer: Re
   const [open, setOpen] = useState(false);
 
   return (
-    <div className="min-h-screen lg:grid lg:grid-cols-[17rem_1fr]">
+    <div className="min-h-screen lg:grid lg:grid-cols-[17rem_1fr] print:block">
       {/* Sidebar escritorio */}
       <aside className="no-print sticky top-0 hidden h-screen flex-col bg-sidebar text-sidebar-foreground lg:flex">
         <Brand />
@@ -127,7 +127,7 @@ export function AppShell({ children, footer }: { children: ReactNode; footer: Re
         </div>
       )}
 
-      <main className="min-w-0 px-4 py-6 sm:px-6 lg:px-10 lg:py-8">
+      <main className="min-w-0 px-4 py-6 sm:px-6 lg:px-10 lg:py-8 print:p-0">
         <div className="mx-auto max-w-6xl">{children}</div>
       </main>
     </div>
