@@ -140,10 +140,28 @@ En el detalle de un prospecto con sitio web, **Revisar sitio** (o el botón 🔎
 - El worker **bloquea direcciones privadas o internas** (localhost, redes privadas, metadatos de la nube, `.internal`, puertos distintos de 80/443), en la URL y en cada redirección o recurso de la página, para que nadie pueda usar una URL capturada para llegar a tu Redis u otros servicios.
 - Se identifica con tu `USER_AGENT` (ponle un contacto real).
 
+## Qué mercado explotar (datos de DENUE, Monterrey, nov 2026)
+
+«Ideal» = negocio con teléfono o correo y **sin sitio web** (muestra de 150 por giro). Los totales salen de `Cuantificar` de INEGI.
+
+| Giro | Negocios | Ideales (est.) | Con teléfono | Con correo |
+| --- | ---: | ---: | ---: | ---: |
+| Salones de belleza y peluquerías | 3,207 | ~1,990 | 56% | 22% |
+| Tiendas de abarrotes | 3,800 | ~1,340 | 35% | 3% |
+| Talleres mecánicos | 1,476 | ~935 | 61% | 31% |
+| Dentistas | 1,140 | ~750 | 57% | 45% |
+| Restaurantes | 1,085 | ~405 | 34% | 44% |
+| Ferreterías | 764 | ~325 | 43% | 56% |
+| Médicos generales | 490 | ~280 | 47% | 41% |
+| Abogados | 516 | ~250 | 39% | 46% |
+| Contadores | 388 | ~210 | 37% | 50% |
+
+Se crean desde **Fuentes → Asistente DENUE** (un giro necesita municipio: INEGI no permite buscar un giro en todo Nuevo León). Los giros con correo alto (dentistas, abogados, contadores) se prestan a la propuesta por correo; los de teléfono alto (salones, talleres) a WhatsApp.
+
 ## Scraping responsable
 
 El colector web con Playwright solo corre si la fuente tiene `scraping_allowed = true` (revisaste sus términos de uso) **y** `robots.txt` permite la URL para el user-agent del bot. Solo extrae datos de contacto públicos (`mailto:` / `tel:`). Configura `USER_AGENT` con un contacto real.
 
 ## Versiones
 
-Se usan tags semánticos: `v0.1.0` base web + auth · `v0.2.0` esquema DB + Redis · `v0.3.0` worker · `v0.4.0` dashboard · `v0.5.0` despliegue (Dockerfile del worker + Railway/Vercel) · `v0.6.0` diseño, PWA y resumen · `v0.7.0` prospectos, pipeline y fuentes · `v0.8.0` clientes, proyectos y cierres · `v0.9.0` catálogo y cotizaciones · `v0.10.0` fuente DENUE (paginación, filtros, score y avisos agrupados) · `v0.11.0` control de prospectos desde Telegram · `v0.12.0` seguimientos y resumen diario · `v0.13.0` plantillas de WhatsApp y correo · `v0.14.0` cotización pública con aceptar · `v0.15.0` asistente DENUE · `v0.16.0` mapa, ubicación y rutas · `v0.17.0` revisión del sitio web · **`v1.0.0`** primera versión estable · `v1.1.0` íconos Lucide y moneda MXN · `v1.2.0` propuesta por correo en Telegram (ver [CHANGELOG](CHANGELOG.md)).
+Se usan tags semánticos: `v0.1.0` base web + auth · `v0.2.0` esquema DB + Redis · `v0.3.0` worker · `v0.4.0` dashboard · `v0.5.0` despliegue (Dockerfile del worker + Railway/Vercel) · `v0.6.0` diseño, PWA y resumen · `v0.7.0` prospectos, pipeline y fuentes · `v0.8.0` clientes, proyectos y cierres · `v0.9.0` catálogo y cotizaciones · `v0.10.0` fuente DENUE (paginación, filtros, score y avisos agrupados) · `v0.11.0` control de prospectos desde Telegram · `v0.12.0` seguimientos y resumen diario · `v0.13.0` plantillas de WhatsApp y correo · `v0.14.0` cotización pública con aceptar · `v0.15.0` asistente DENUE · `v0.16.0` mapa, ubicación y rutas · `v0.17.0` revisión del sitio web · **`v1.0.0`** primera versión estable · `v1.1.0` íconos Lucide y moneda MXN · `v1.2.0` propuesta por correo en Telegram · `v1.2.1` corrección del asistente DENUE (ver [CHANGELOG](CHANGELOG.md)).

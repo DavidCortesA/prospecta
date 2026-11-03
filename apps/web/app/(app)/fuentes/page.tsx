@@ -120,7 +120,7 @@ async function Sources({ searchParams }: { searchParams: PageProps<"/fuentes">["
         </summary>
         <form action={createDenueSource} className="grid gap-3 border-t border-primary/20 p-5 sm:grid-cols-2">
           <p className="text-xs text-muted-foreground sm:col-span-2">
-            Elige el giro y el municipio y se arma solo la fuente (URL, mapeo y filtros). Necesita la variable <code>DENUE_TOKEN</code> en el worker.
+            Elige el giro y el municipio y se arma solo la fuente (URL, mapeo y filtros). Un giro necesita municipio; «Todo Nuevo León» solo sirve con palabra clave. Necesita la variable <code>DENUE_TOKEN</code> en el worker.
           </p>
           <label className="space-y-1.5">
             <span className="text-xs font-semibold text-muted-foreground">Giro</span>
@@ -140,7 +140,7 @@ async function Sources({ searchParams }: { searchParams: PageProps<"/fuentes">["
           <label className="space-y-1.5">
             <span className="text-xs font-semibold text-muted-foreground">Municipio</span>
             <select name="municipio" defaultValue="039" className={inputCls}>
-              <option value="">Todo Nuevo León</option>
+              <option value="">Todo Nuevo León (solo con palabra clave)</option>
               {DENUE_MUNICIPIOS_ORDER.map((c) => (
                 <option key={c} value={c}>
                   {DENUE_MUNICIPIOS[c]}

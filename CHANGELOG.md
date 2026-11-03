@@ -1,6 +1,10 @@
 # Changelog
 
-Cada versión tiene su tag en git (`v0.1.0` … `v1.2.0`).
+Cada versión tiene su tag en git (`v0.1.0` … `v1.2.1`).
+
+## 1.2.1: Corrección del asistente DENUE y guía de mercados
+- Corrección: INEGI responde 404 al pedir un **giro** en «todo Nuevo León»; el asistente ahora exige municipio para un giro (la palabra clave sí admite todo el estado).
+- README: tabla de mercados con datos reales de DENUE para elegir qué giro explotar.
 
 ## 1.2.0: Propuesta por correo en Telegram
 - Los avisos de prospectos con correo traen el botón **✉️ Propuesta por correo**; también `/correo nombre` o la palabra `correo` (respondiendo a un aviso).

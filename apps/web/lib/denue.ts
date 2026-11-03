@@ -75,6 +75,8 @@ export function buildDenueSource(input: DenueInput) {
   if (!giro && !keyword) throw new Error("Elige un giro o escribe una palabra clave");
 
   const municipio = input.municipio && DENUE_MUNICIPIOS[input.municipio] ? input.municipio : "";
+  // INEGI responde 404 si se pide una clase de actividad en todo el estado: con giro hace falta un municipio.
+  if (giro && !municipio) throw new Error("Para un giro elige un municipio (INEGI no permite buscar un giro en todo Nuevo León). Para todo el estado usa una palabra clave.");
   const clase = giro ? giro.code : "0";
   // En DENUE varias palabras van separadas por comas; "0" significa "sin filtro"
   const nombre = !giro && keyword ? encodeURIComponent(keyword).replace(/%20/g, ",") : "0";
