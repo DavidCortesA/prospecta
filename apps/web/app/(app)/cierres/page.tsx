@@ -1,7 +1,8 @@
 import { Suspense } from "react";
 import Link from "next/link";
 import { Trophy, XCircle, Percent, Wallet } from "lucide-react";
-import { createClient } from "@/lib/server";
+import { connection } from "next/server";
+import { dbRows } from "@/lib/db";
 import { dateShort, money, pct } from "@/lib/format";
 import { Card, CardHeader, EmptyState, PageHeader, StatCard } from "@/components/ui-kit";
 
@@ -21,13 +22,11 @@ export default function Page() {
 type Closed = { id: string; name: string; company: string | null; status: string; deal_value: number | null; lost_reason: string | null; closed_at: string | null };
 
 async function Closings() {
-  const supabase = await createClient();
-  const { data } = await supabase
-    .from("leads")
-    .select("id, name, company, status, deal_value, lost_reason, closed_at")
-    .in("status", ["won", "lost"])
-    .order("closed_at", { ascending: false, nullsFirst: false })
-    .limit(500);
+  // Lectura en cada petición (antes lo marcaba createClient con las cookies)
+  await connection();
+  const { data } = await dbRows(
+    "select id, name, company, status, deal_value, lost_reason, closed_at from leads where status in ('won', 'lost') order by closed_at desc nulls last limit 500"
+  );
 
   const closed = (data ?? []) as Closed[];
   const won = closed.filter((l) => l.status === "won");

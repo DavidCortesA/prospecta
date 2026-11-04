@@ -1,5 +1,5 @@
 import { config } from "./config.js";
-import { db } from "./db.js";
+import { query } from "./db.js";
 
 // NOTA: la misma lógica vive en apps/web/lib/templates.ts (el dashboard arma los botones del detalle del
 // prospecto). Si cambias una, cambia la otra.
@@ -62,32 +62,20 @@ let cached: { at: number; body: string | null } | null = null;
 
 async function defaultWhatsappBody(): Promise<string | null> {
   if (cached && Date.now() - cached.at < 60_000) return cached.body;
-  const { data, error } = await db
-    .from("message_templates")
-    .select("body")
-    .eq("channel", "whatsapp")
-    .eq("active", true)
-    .order("is_default", { ascending: false })
-    .order("created_at", { ascending: true })
-    .limit(1)
-    .maybeSingle();
   // Si la migración 0008 no está aplicada, no hay botón de WhatsApp (el resto del bot sigue igual)
-  const body = error ? null : ((data?.body as string | undefined) ?? null);
+  const body = await query<{ body: string }>(
+    "SELECT body FROM message_templates WHERE channel = 'whatsapp' AND active = true ORDER BY is_default DESC, created_at ASC LIMIT 1"
+  ).then((r) => r.rows[0]?.body ?? null, () => null);
   cached = { at: Date.now(), body };
   return body;
 }
 
 /** Frase de la última auditoría terminada del prospecto (para la variable {{hallazgo}}). */
 async function latestHeadline(leadId: string): Promise<string | null> {
-  const { data, error } = await db
-    .from("site_audits")
-    .select("headline")
-    .eq("lead_id", leadId)
-    .eq("status", "done")
-    .order("created_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-  return error ? null : ((data?.headline as string | undefined) ?? null);
+  return query<{ headline: string | null }>(
+    "SELECT headline FROM site_audits WHERE lead_id = $1 AND status = 'done' ORDER BY created_at DESC LIMIT 1",
+    [leadId]
+  ).then((r) => r.rows[0]?.headline ?? null, () => null);
 }
 
 /** Enlace de WhatsApp con la plantilla por defecto ya llena para este prospecto (o null si no aplica). */
@@ -110,16 +98,9 @@ let emailCached: { at: number; tpl: EmailTemplate | null } | null = null;
 /** Plantilla de correo marcada por defecto (o la primera activa), con caché corta. */
 async function defaultEmailTemplate(): Promise<EmailTemplate | null> {
   if (emailCached && Date.now() - emailCached.at < 60_000) return emailCached.tpl;
-  const { data, error } = await db
-    .from("message_templates")
-    .select("name, subject, body")
-    .eq("channel", "email")
-    .eq("active", true)
-    .order("is_default", { ascending: false })
-    .order("created_at", { ascending: true })
-    .limit(1)
-    .maybeSingle();
-  const tpl = error ? null : ((data as EmailTemplate | null) ?? null);
+  const tpl = await query<EmailTemplate>(
+    "SELECT name, subject, body FROM message_templates WHERE channel = 'email' AND active = true ORDER BY is_default DESC, created_at ASC LIMIT 1"
+  ).then((r) => r.rows[0] ?? null, () => null);
   emailCached = { at: Date.now(), tpl };
   return tpl;
 }

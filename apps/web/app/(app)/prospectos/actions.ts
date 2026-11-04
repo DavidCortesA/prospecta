@@ -3,6 +3,7 @@
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { requireUser } from "@/lib/auth";
+import { dbRow, dbRows } from "@/lib/db";
 import { LEAD_STATUSES, type LeadStatus } from "@/lib/constants";
 import { ensureClientFromLead } from "@/lib/clients";
 import { addDays, todayKey } from "@/lib/format";
@@ -34,22 +35,27 @@ function leadFields(fd: FormData) {
 }
 
 export async function createLead(formData: FormData) {
-  const { supabase } = await requireUser();
-  const { data, error } = await supabase.from("leads").insert(leadFields(formData)).select("id").single();
+  await requireUser();
+  const f = leadFields(formData);
+  const { data, error } = await dbRow<{ id: string }>(
+    "insert into leads (name, company, email, phone, website, city, notes, score) values ($1, $2, $3, $4, $5, $6, $7, $8) returning id",
+    [f.name, f.company, f.email, f.phone, f.website, f.city, f.notes, f.score]
+  );
   if (error) {
     const dup = error.code === "23505" ? "Ya existe un prospecto con ese correo o sitio web" : error.message;
     redirect(`/prospectos/nuevo?error=${encodeURIComponent(dup)}`);
   }
   revalidatePath("/prospectos");
-  redirect(`/prospectos/${data.id}`);
+  redirect(`/prospectos/${data!.id}`);
 }
 
 export async function updateLead(id: string, formData: FormData) {
-  const { supabase } = await requireUser();
-  const { error } = await supabase
-    .from("leads")
-    .update({ ...leadFields(formData), deal_value: num(formData, "deal_value") })
-    .eq("id", id);
+  await requireUser();
+  const f = leadFields(formData);
+  const { error } = await dbRows(
+    "update leads set name = $1, company = $2, email = $3, phone = $4, website = $5, city = $6, notes = $7, score = $8, deal_value = $9 where id = $10",
+    [f.name, f.company, f.email, f.phone, f.website, f.city, f.notes, f.score, num(formData, "deal_value"), id]
+  );
   if (error) redirect(`/prospectos/${id}?error=${encodeURIComponent(error.message)}`);
   revalidatePath(`/prospectos/${id}`);
   revalidatePath("/prospectos");
@@ -57,18 +63,20 @@ export async function updateLead(id: string, formData: FormData) {
 
 /** Cambia el estado. Ganar acepta valor del trato; perder acepta motivo. */
 export async function setLeadStatus(id: string, status: LeadStatus, extra?: { dealValue?: number | null; lostReason?: string | null }) {
-  const { supabase } = await requireUser();
+  await requireUser();
   if (!LEAD_STATUSES.includes(status)) throw new Error("Estado inválido");
 
-  const patch: Record<string, unknown> = { status };
-  if (status === "won" && extra?.dealValue != null) patch.deal_value = extra.dealValue;
-  if (status === "lost") patch.lost_reason = extra?.lostReason ?? null;
-  if (status !== "lost") patch.lost_reason = null;
+  // deal_value solo cambia al ganar con valor; lost_reason se guarda al perder y se limpia en otro caso
+  const dealValue = status === "won" && extra?.dealValue != null ? extra.dealValue : null;
+  const lostReason = status === "lost" ? (extra?.lostReason ?? null) : null;
 
-  const { error } = await supabase.from("leads").update(patch).eq("id", id);
+  const { error } = await dbRows(
+    "update leads set status = $1, deal_value = coalesce($2::numeric, deal_value), lost_reason = $3 where id = $4",
+    [status, dealValue, lostReason, id]
+  );
   if (error) throw new Error(error.message);
 
-  if (status === "won") await ensureClientFromLead(supabase, id);
+  if (status === "won") await ensureClientFromLead(id);
 
   revalidatePath("/", "layout");
 }
@@ -81,17 +89,17 @@ export async function changeStatusForm(id: string, status: LeadStatus, formData:
 }
 
 export async function addNote(leadId: string, formData: FormData) {
-  const { supabase } = await requireUser();
+  await requireUser();
   const note = text(formData, "note");
   if (!note) return;
-  const { error } = await supabase.from("lead_events").insert({ lead_id: leadId, type: "note", payload: { text: note } });
+  const { error } = await dbRows("insert into lead_events (lead_id, type, payload) values ($1, 'note', $2::jsonb)", [leadId, JSON.stringify({ text: note })]);
   if (error) throw new Error(error.message);
   revalidatePath(`/prospectos/${leadId}`);
 }
 
 export async function deleteLead(id: string) {
-  const { supabase } = await requireUser();
-  const { error } = await supabase.from("leads").delete().eq("id", id);
+  await requireUser();
+  const { error } = await dbRows("delete from leads where id = $1", [id]);
   if (error) throw new Error(error.message);
   revalidatePath("/", "layout");
   redirect("/prospectos");
@@ -99,9 +107,9 @@ export async function deleteLead(id: string) {
 
 /** Fija (o quita, con null) la fecha del próximo seguimiento. */
 export async function setFollowup(id: string, date: string | null) {
-  const { supabase } = await requireUser();
+  await requireUser();
   if (date !== null && !/^\d{4}-\d{2}-\d{2}$/.test(date)) throw new Error("Fecha inválida");
-  const { error } = await supabase.from("leads").update({ next_followup: date }).eq("id", id);
+  const { error } = await dbRows("update leads set next_followup = $1 where id = $2", [date, id]);
   if (error) throw new Error(error.message);
   revalidatePath("/", "layout");
 }
@@ -124,23 +132,23 @@ export async function clearFollowup(id: string) {
  * (y el trigger de la base agenda el seguimiento en 3 días).
  */
 export async function logContact(leadId: string, channel: "whatsapp" | "email", template: string) {
-  const { supabase } = await requireUser();
-  await supabase.from("lead_events").insert({ lead_id: leadId, type: "contact", payload: { channel, template } });
-  const { data: lead } = await supabase.from("leads").select("status").eq("id", leadId).maybeSingle();
-  if (lead?.status === "new") await supabase.from("leads").update({ status: "contacted" }).eq("id", leadId);
+  await requireUser();
+  await dbRows("insert into lead_events (lead_id, type, payload) values ($1, 'contact', $2::jsonb)", [leadId, JSON.stringify({ channel, template })]);
+  const { data: lead } = await dbRow<{ status: string }>("select status from leads where id = $1", [leadId]);
+  if (lead?.status === "new") await dbRows("update leads set status = 'contacted' where id = $1", [leadId]);
   revalidatePath("/", "layout");
 }
 
 /** Pide al bot que revise el sitio web del prospecto (el worker la toma en ~20 s). */
 export async function requestSiteAudit(leadId: string) {
-  const { supabase } = await requireUser();
-  const { data: lead } = await supabase.from("leads").select("website").eq("id", leadId).maybeSingle();
+  await requireUser();
+  const { data: lead } = await dbRow<{ website: string | null }>("select website from leads where id = $1", [leadId]);
   const url = normalizeWebsite(lead?.website);
   if (!url) redirect(`/prospectos/${leadId}?error=${encodeURIComponent("Este prospecto no tiene un sitio web válido")}`);
 
-  const { data: open } = await supabase.from("site_audits").select("id").eq("lead_id", leadId).in("status", ["pending", "running"]).limit(1);
+  const { data: open } = await dbRows("select id from site_audits where lead_id = $1 and status in ('pending', 'running') limit 1", [leadId]);
   if (!open?.length) {
-    const { error } = await supabase.from("site_audits").insert({ lead_id: leadId, url });
+    const { error } = await dbRows("insert into site_audits (lead_id, url) values ($1, $2)", [leadId, url]);
     if (error) redirect(`/prospectos/${leadId}?error=${encodeURIComponent(error.message)}`);
   }
   revalidatePath(`/prospectos/${leadId}`);

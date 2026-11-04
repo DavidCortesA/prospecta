@@ -72,13 +72,3 @@ end $$;
 create trigger leads_touch before update on public.leads
 for each row execute function public.touch_updated_at();
 
--- RLS: solo usuarios autenticados (el dashboard). El worker usa la service role key.
-alter table public.sources     enable row level security;
-alter table public.leads       enable row level security;
-alter table public.lead_events enable row level security;
-alter table public.job_runs    enable row level security;
-
-create policy "auth all sources"     on public.sources     for all to authenticated using (true) with check (true);
-create policy "auth all leads"       on public.leads       for all to authenticated using (true) with check (true);
-create policy "auth all lead_events" on public.lead_events for all to authenticated using (true) with check (true);
-create policy "auth read job_runs"   on public.job_runs    for select to authenticated using (true);

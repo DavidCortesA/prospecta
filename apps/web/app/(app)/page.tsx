@@ -2,6 +2,7 @@ import { Suspense } from "react";
 import Link from "next/link";
 import { AlertTriangle, CheckCircle2, Sparkles, Target, TrendingUp, Users, Zap } from "lucide-react";
 import { createClient } from "@/lib/server";
+import { dbRows } from "@/lib/db";
 import {
   APP_TZ,
   LEAD_STATUSES,
@@ -32,20 +33,19 @@ async function Overview() {
   const { data: claims } = await supabase.auth.getClaims();
 
   const [leadsRes, sourcesRes, runsRes, quotesRes, projectsRes] = await Promise.all([
-    supabase
-      .from("leads")
-      .select("id, name, company, status, score, created_at, updated_at, source_id, next_followup")
-      .order("created_at", { ascending: false })
-      .limit(5000),
-    supabase.from("sources").select("id, name, enabled"),
-    supabase
-      .from("job_runs")
-      .select("id, status, found, inserted, error, started_at, sources(name)")
-      .order("started_at", { ascending: false })
-      .limit(40),
+    dbRows(
+      "select id, name, company, status, score, created_at, updated_at, source_id, next_followup from leads order by created_at desc limit 5000"
+    ),
+    dbRows("select id, name, enabled from sources"),
+    dbRows(
+      "select r.id, r.status, r.found, r.inserted, r.error, r.started_at, (select json_build_object('name', s.name) from sources s where s.id = r.source_id) as sources from job_runs r order by r.started_at desc limit 40"
+    ),
     // Estas tablas llegan en migraciones posteriores; si no existen se ignoran.
-    supabase.from("quotes").select("id, status, quote_items(qty, unit_price)").eq("status", "sent"),
-    supabase.from("projects").select("id, status").neq("status", "delivered"),
+    dbRows(
+      "select q.id, q.status, coalesce((select json_agg(json_build_object('qty', i.qty, 'unit_price', i.unit_price)) from quote_items i where i.quote_id = q.id), '[]'::json) as quote_items from quotes q where q.status = $1",
+      ["sent"]
+    ),
+    dbRows("select id, status from projects where status <> $1", ["delivered"]),
   ]);
 
   if (isMissingTable(leadsRes.error)) {

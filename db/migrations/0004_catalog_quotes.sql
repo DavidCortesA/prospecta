@@ -50,10 +50,3 @@ create index quote_items_quote_idx on public.quote_items (quote_id, position);
 create trigger quotes_touch before update on public.quotes
 for each row execute function public.touch_updated_at();
 
-alter table public.features    enable row level security;
-alter table public.quotes      enable row level security;
-alter table public.quote_items enable row level security;
-
-create policy "auth all features"    on public.features    for all to authenticated using (true) with check (true);
-create policy "auth all quotes"      on public.quotes      for all to authenticated using (true) with check (true);
-create policy "auth all quote_items" on public.quote_items for all to authenticated using (true) with check (true);

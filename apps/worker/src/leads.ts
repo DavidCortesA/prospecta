@@ -1,8 +1,7 @@
 import { config } from "./config.js";
-import { db } from "./db.js";
+import { query } from "./db.js";
 import { addDays, dayLabel, todayKey } from "./dates.js";
 import { whatsappUrlFor } from "./messages.js";
-import { connection } from "./queues.js";
 import { escapeHtml, notify, type Keyboard } from "./telegram.js";
 
 export type LeadStatus = "new" | "contacted" | "replied" | "qualified" | "won" | "lost";
@@ -82,7 +81,8 @@ export function leadCard(lead: Lead, title = "Prospecto"): string {
   );
 }
 
-const MESSAGE_TTL = 60 * 60 * 24 * 30;
+/** Las respuestas a fichas de hace más de 30 días ya no se asocian a su prospecto. */
+const MESSAGE_TTL_DAYS = 30;
 
 /** Envía la ficha con botones y recuerda qué prospecto es, para poder responderle con palabras clave. */
 export const statusLine = (status: LeadStatus) => `Estado: ${STATUS_EMOJI[status]} ${STATUS_LABEL[status]}`;
@@ -91,50 +91,63 @@ export const followupLine = (date: string | null) => (date ? `📅 Seguimiento: 
 export async function sendLeadCard(lead: Lead, title: string, extra = ""): Promise<void> {
   const text = [`${leadCard(lead, title)}${extra}`, statusLine(lead.status), followupLine(lead.next_followup)].filter(Boolean).join("\n");
   const messageId = await notify(text, leadKeyboard(lead, await whatsappUrlFor(lead)));
-  if (messageId) await connection.set(`tg:msg:${messageId}`, lead.id, "EX", MESSAGE_TTL);
+  if (messageId) {
+    await query(
+      `INSERT INTO telegram_messages (message_id, lead_id) VALUES ($1, $2)
+       ON CONFLICT (message_id) DO UPDATE SET lead_id = EXCLUDED.lead_id, created_at = now()`,
+      [messageId, lead.id]
+    );
+  }
 }
 
 export async function leadForMessage(messageId: number): Promise<string | null> {
-  return connection.get(`tg:msg:${messageId}`);
+  const { rows } = await query<{ lead_id: string }>(
+    `SELECT lead_id FROM telegram_messages WHERE message_id = $1 AND created_at > now() - make_interval(days => $2)`,
+    [messageId, MESSAGE_TTL_DAYS]
+  );
+  return rows[0]?.lead_id ?? null;
 }
 
 export async function getLead(id: string): Promise<Lead | null> {
-  const { data } = await db.from("leads").select(LEAD_COLUMNS).eq("id", id).maybeSingle();
-  return (data as Lead | null) ?? null;
+  return query<Lead>(`SELECT ${LEAD_COLUMNS} FROM leads WHERE id = $1`, [id]).then((r) => r.rows[0] ?? null, () => null);
 }
 
-export async function findLeads(query: string, limit = 5): Promise<Lead[]> {
-  const term = query.replace(/[%,()]/g, " ").trim();
+export async function findLeads(search: string, limit = 5): Promise<Lead[]> {
+  const term = search.replace(/[%,()]/g, " ").trim();
   if (!term) return [];
-  const { data } = await db
-    .from("leads")
-    .select(LEAD_COLUMNS)
-    .or(`name.ilike.%${term}%,company.ilike.%${term}%`)
-    .order("score", { ascending: false })
-    .limit(limit);
-  return (data as Lead[] | null) ?? [];
+  return query<Lead>(
+    `SELECT ${LEAD_COLUMNS} FROM leads WHERE name ILIKE $1 OR company ILIKE $1 ORDER BY score DESC LIMIT $2`,
+    [`%${term}%`, limit]
+  ).then((r) => r.rows, () => []);
 }
 
 export async function pendingLeads(limit = 5): Promise<Lead[]> {
-  const { data } = await db.from("leads").select(LEAD_COLUMNS).eq("status", "new").order("score", { ascending: false }).limit(limit);
-  return (data as Lead[] | null) ?? [];
+  return query<Lead>(`SELECT ${LEAD_COLUMNS} FROM leads WHERE status = 'new' ORDER BY score DESC LIMIT $1`, [limit]).then(
+    (r) => r.rows,
+    () => []
+  );
 }
 
 export async function statusCounts(): Promise<Record<string, number>> {
-  const { data } = await db.from("leads").select("status").limit(5000);
+  const data = await query<{ status: string }>("SELECT status FROM leads LIMIT 5000").then((r) => r.rows, () => []);
   const counts: Record<string, number> = {};
-  for (const l of data ?? []) counts[l.status] = (counts[l.status] ?? 0) + 1;
+  for (const l of data) counts[l.status] = (counts[l.status] ?? 0) + 1;
   return counts;
 }
 
 /** Cambia el estado igual que el dashboard: ganar crea cliente y proyecto; perder guarda el motivo. */
 export async function changeStatus(id: string, status: LeadStatus, extra?: { dealValue?: number | null; reason?: string | null }): Promise<Lead | null> {
-  const patch: Record<string, unknown> = { status, lost_reason: status === "lost" ? (extra?.reason ?? null) : null };
-  if (status === "won" && extra?.dealValue != null) patch.deal_value = extra.dealValue;
-
-  const { error } = await db.from("leads").update(patch).eq("id", id);
-  if (error) {
-    console.error("changeStatus:", error.message);
+  // deal_value solo se cambia al ganar con monto (COALESCE conserva el valor actual en los demás casos)
+  const dealValue = status === "won" ? (extra?.dealValue ?? null) : null;
+  try {
+    await query("UPDATE leads SET status = $1, lost_reason = $2, deal_value = COALESCE($3, deal_value) WHERE id = $4", [
+      status,
+      status === "lost" ? (extra?.reason ?? null) : null,
+      dealValue,
+      id,
+    ]);
+  } catch (err) {
+    console.error("changeStatus:", (err as Error).message);
     return null;
   }
   if (status === "won") await ensureClientFromLead(id);
@@ -142,43 +155,56 @@ export async function changeStatus(id: string, status: LeadStatus, extra?: { dea
 }
 
 export async function addNote(id: string, text: string): Promise<boolean> {
-  const { error } = await db.from("lead_events").insert({ lead_id: id, type: "note", payload: { text, via: "telegram" } });
-  return !error;
+  return query("INSERT INTO lead_events (lead_id, type, payload) VALUES ($1, 'note', $2::jsonb)", [id, JSON.stringify({ text, via: "telegram" })]).then(
+    () => true,
+    () => false
+  );
 }
 
 const DEFAULT_MILESTONES = ["Kickoff y requerimientos", "Diseño aprobado", "Desarrollo", "Pruebas y ajustes", "Entrega y capacitación"];
 
 /** Misma lógica que el dashboard (apps/web/lib/clients.ts). Si la migración 0003 no está aplicada, no hace nada. */
 async function ensureClientFromLead(leadId: string): Promise<void> {
-  const { data: existing, error: findError } = await db.from("clients").select("id").eq("lead_id", leadId).maybeSingle();
-  if (findError || existing) return;
+  // Cualquier error aquí termina la función sin hacer nada más (igual que antes con `error`/`data` ignorados)
+  try {
+    const existing = await query("SELECT id FROM clients WHERE lead_id = $1", [leadId]);
+    if (existing.rows.length) return;
 
-  const { data: lead } = await db.from("leads").select("*").eq("id", leadId).maybeSingle();
-  if (!lead) return;
+    const lead = (await query<Lead & { deal_value: string | null }>("SELECT * FROM leads WHERE id = $1", [leadId])).rows[0];
+    if (!lead) return;
 
-  const { data: client, error } = await db
-    .from("clients")
-    .insert({ lead_id: lead.id, name: lead.name, company: lead.company, email: lead.email, phone: lead.phone, website: lead.website, notes: lead.notes })
-    .select("id")
-    .single();
-  if (error || !client) return;
+    const client = (
+      await query<{ id: string }>(
+        "INSERT INTO clients (lead_id, name, company, email, phone, website, notes) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id",
+        [lead.id, lead.name, lead.company, lead.email, lead.phone, lead.website, lead.notes]
+      )
+    ).rows[0];
+    if (!client) return;
 
-  const { data: project } = await db
-    .from("projects")
-    .insert({ client_id: client.id, name: `Proyecto ${lead.company ?? lead.name}`, budget: lead.deal_value, currency: "MXN" })
-    .select("id")
-    .single();
-  if (project) {
-    await db.from("project_milestones").insert(DEFAULT_MILESTONES.map((title, position) => ({ project_id: project.id, title, position })));
+    const project = (
+      await query<{ id: string }>("INSERT INTO projects (client_id, name, budget, currency) VALUES ($1, $2, $3, 'MXN') RETURNING id", [
+        client.id,
+        `Proyecto ${lead.company ?? lead.name}`,
+        lead.deal_value,
+      ])
+    ).rows[0];
+    if (project) {
+      const values = DEFAULT_MILESTONES.flatMap((title, position) => [project.id, title, position]);
+      const placeholders = DEFAULT_MILESTONES.map((_, i) => `($${i * 3 + 1}, $${i * 3 + 2}, $${i * 3 + 3})`).join(", ");
+      await query(`INSERT INTO project_milestones (project_id, title, position) VALUES ${placeholders}`, values);
+    }
+  } catch {
+    // Sin efecto: el estado del prospecto ya quedó cambiado
   }
 }
 
 /** Agenda el seguimiento dentro de N días (o lo quita con null). Devuelve la fecha fijada. */
 export async function setFollowupIn(id: string, days: number | null): Promise<string | null | undefined> {
   const date = days === null ? null : addDays(todayKey(), days);
-  const { error } = await db.from("leads").update({ next_followup: date }).eq("id", id);
-  if (error) {
-    console.error("setFollowupIn:", error.message);
+  try {
+    await query("UPDATE leads SET next_followup = $1 WHERE id = $2", [date, id]);
+  } catch (err) {
+    console.error("setFollowupIn:", (err as Error).message);
     return undefined;
   }
   return date;
@@ -186,17 +212,12 @@ export async function setFollowupIn(id: string, days: number | null): Promise<st
 
 /** Prospectos abiertos con seguimiento de hoy o vencido, del más atrasado al más reciente. */
 export async function dueFollowups(limit = 50): Promise<Lead[]> {
-  const { data } = await db
-    .from("leads")
-    .select(LEAD_COLUMNS)
-    .lte("next_followup", todayKey())
-    .not("status", "in", "(won,lost)")
-    .order("next_followup", { ascending: true })
-    .limit(limit);
-  return (data as Lead[] | null) ?? [];
+  return query<Lead>(
+    `SELECT ${LEAD_COLUMNS} FROM leads WHERE next_followup <= $1 AND status NOT IN ('won', 'lost') ORDER BY next_followup ASC LIMIT $2`,
+    [todayKey(), limit]
+  ).then((r) => r.rows, () => []);
 }
 
 export async function countByStatus(status: LeadStatus): Promise<number> {
-  const { count } = await db.from("leads").select("*", { count: "exact", head: true }).eq("status", status);
-  return count ?? 0;
+  return query<{ n: number }>("SELECT count(*)::int AS n FROM leads WHERE status = $1", [status]).then((r) => r.rows[0].n, () => 0);
 }

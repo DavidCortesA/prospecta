@@ -3,7 +3,7 @@ import type { Metadata } from "next";
 import { headers } from "next/headers";
 import { notFound } from "next/navigation";
 import { CheckCircle2 } from "lucide-react";
-import { createClient } from "@/lib/server";
+import { dbRow } from "@/lib/db";
 import { dateTime, money } from "@/lib/format";
 import { businessName, calcTotals, quoteNumber } from "@/lib/quotes";
 import { QuoteDocument, type QuoteDocItem } from "@/components/quote-document";
@@ -70,9 +70,8 @@ async function PublicQuote({
   // ?p=1 lo usa el dashboard para la vista previa del dueño (no cuenta como visita del cliente)
   const track = sp.p !== "1" && !BOT_UA.test(h.get("user-agent") ?? "");
 
-  const supabase = await createClient();
-  const { data } = await supabase.rpc("public_quote", { p_token: token, p_track: track });
-  const quote = data as PublicQuoteData | null;
+  const { data: row } = await dbRow<{ data: PublicQuoteData | null }>("select public.public_quote($1, $2) as data", [token, track]);
+  const quote = row?.data ?? null;
   if (!quote) notFound();
 
   const accepted = quote.status === "accepted" || !!quote.accepted_at;

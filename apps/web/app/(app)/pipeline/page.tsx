@@ -1,5 +1,6 @@
 import { Suspense } from "react";
-import { createClient } from "@/lib/server";
+import { connection } from "next/server";
+import { dbRows } from "@/lib/db";
 import { nowMs } from "@/lib/format";
 import { PageHeader } from "@/components/ui-kit";
 import { Kanban, type KanbanLead } from "./kanban";
@@ -18,15 +19,14 @@ export default function Page() {
 }
 
 async function Board() {
-  const supabase = await createClient();
+  // Lectura en cada petición (antes lo marcaba createClient con las cookies)
+  await connection();
   // Los cerrados antiguos no se muestran para no saturar el tablero.
   const since = new Date(nowMs() - 60 * 24 * 3600 * 1000).toISOString();
-  const { data } = await supabase
-    .from("leads")
-    .select("id, name, company, score, status, deal_value, closed_at")
-    .or(`closed_at.is.null,closed_at.gte.${since}`)
-    .order("score", { ascending: false })
-    .limit(500);
+  const { data } = await dbRows(
+    "select id, name, company, score, status, deal_value, closed_at from leads where (closed_at is null or closed_at >= $1) order by score desc limit 500",
+    [since]
+  );
 
   return <Kanban initial={(data ?? []) as KanbanLead[]} />;
 }

@@ -1,7 +1,7 @@
 "use server";
 
 import { redirect } from "next/navigation";
-import { createClient } from "@/lib/server";
+import { dbRow } from "@/lib/db";
 
 const text = (fd: FormData, key: string) => {
   const v = fd.get(key);
@@ -21,14 +21,12 @@ export async function acceptQuote(token: string, formData: FormData) {
   if (!agreed) redirect(`${back}?error=agree`);
   if (!name) redirect(`${back}?error=name_required`);
 
-  const supabase = await createClient();
-  const { data, error } = await supabase.rpc("accept_public_quote", {
-    p_token: token,
-    p_name: name,
-    p_comment: comment || null,
-  });
+  const { data: row, error } = await dbRow<{ data: { ok: boolean; error?: string } | null }>(
+    "select public.accept_public_quote($1, $2, $3) as data",
+    [token, name, comment || null]
+  );
 
-  const result = data as { ok: boolean; error?: string } | null;
+  const result = row?.data ?? null;
   if (error || !result) redirect(`${back}?error=unknown`);
   if (!result.ok) redirect(`${back}?error=${result.error ?? "unknown"}`);
   redirect(`${back}?accepted=1`);

@@ -2,7 +2,7 @@ import { Suspense } from "react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft, Check, FileText, Plus, Trash2 } from "lucide-react";
-import { createClient } from "@/lib/server";
+import { dbRow, dbRows } from "@/lib/db";
 import { PROJECT_LABEL, PROJECT_STATUSES, QUOTE_LABEL, QUOTE_TONE, type ProjectStatus, type QuoteStatus } from "@/lib/constants";
 import { dateShort, money, pct } from "@/lib/format";
 import { Badge, Card, CardHeader, LinkButton, Progress, btn, inputCls } from "@/components/ui-kit";
@@ -30,17 +30,19 @@ type Milestone = { id: string; title: string; done: boolean; position: number };
 
 async function Detail({ params }: { params: PageProps<"/clientes/[id]">["params"] }) {
   const { id } = await params;
-  const supabase = await createClient();
-
   const [{ data: client }, { data: projects }, { data: quotes }] = await Promise.all([
-    supabase.from("clients").select("*").eq("id", id).maybeSingle(),
-    supabase
-      .from("projects")
-      .select("*, project_milestones(id, title, done, position)")
-      .eq("client_id", id)
-      .order("created_at", { ascending: false }),
+    dbRow("select * from clients where id = $1", [id]),
+    dbRows(
+      `select p.*, coalesce((select json_agg(json_build_object('id', m.id, 'title', m.title, 'done', m.done, 'position', m.position)) from project_milestones m where m.project_id = p.id), '[]'::json) as project_milestones
+       from projects p where p.client_id = $1 order by p.created_at desc`,
+      [id]
+    ),
     // La tabla de cotizaciones llega en una migración posterior; si no existe se ignora.
-    supabase.from("quotes").select("id, number, title, status, created_at, quote_items(qty, unit_price)").eq("client_id", id).order("created_at", { ascending: false }),
+    dbRows(
+      `select q.id, q.number, q.title, q.status, q.created_at, coalesce((select json_agg(json_build_object('qty', i.qty, 'unit_price', i.unit_price)) from quote_items i where i.quote_id = q.id), '[]'::json) as quote_items
+       from quotes q where q.client_id = $1 order by q.created_at desc`,
+      [id]
+    ),
   ]);
   if (!client) notFound();
 

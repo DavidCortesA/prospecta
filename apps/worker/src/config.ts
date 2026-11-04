@@ -8,8 +8,8 @@ function required(name: string): string {
 
 export const config = {
   redisUrl: process.env.REDIS_URL ?? "redis://localhost:6379",
-  supabaseUrl: required("SUPABASE_URL"),
-  supabaseServiceKey: required("SUPABASE_SERVICE_ROLE_KEY"),
+  /** Conexión directa a Neon (el worker es un proceso de larga duración: pool de node-postgres) */
+  databaseUrl: required("DATABASE_URL"),
   telegramToken: process.env.TELEGRAM_BOT_TOKEN,
   telegramChatId: process.env.TELEGRAM_CHAT_ID,
   userAgent: process.env.USER_AGENT ?? "ProspectaBot/0.3",

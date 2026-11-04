@@ -3,7 +3,7 @@ import { headers } from "next/headers";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft, CheckCircle2, Eye, FileText, Send, XCircle } from "lucide-react";
-import { createClient } from "@/lib/server";
+import { dbRow } from "@/lib/db";
 import { QUOTE_LABEL, QUOTE_STATUSES, QUOTE_TONE, type QuoteStatus } from "@/lib/constants";
 import { dateShort, dateTime, money, timeAgo } from "@/lib/format";
 import { businessName, calcTotals, quoteNumber } from "@/lib/quotes";
@@ -31,8 +31,11 @@ type Item = { id: string; name: string; description: string | null; qty: number;
 
 async function Detail({ params }: { params: PageProps<"/cotizaciones/[id]">["params"] }) {
   const { id } = await params;
-  const supabase = await createClient();
-  const { data: q } = await supabase.from("quotes").select("*, quote_items(*)").eq("id", id).maybeSingle();
+  const { data: q } = await dbRow(
+    `select q.*, coalesce((select json_agg(i order by i.position) from quote_items i where i.quote_id = q.id), '[]'::json) as quote_items
+     from quotes q where q.id = $1`,
+    [id]
+  );
   if (!q) notFound();
 
   const items = ((q.quote_items ?? []) as Item[]).sort((a, b) => a.position - b.position);

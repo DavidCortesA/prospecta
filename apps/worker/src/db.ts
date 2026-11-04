@@ -1,9 +1,15 @@
-import { createClient } from "@supabase/supabase-js";
+import { Pool, types, type QueryResultRow } from "pg";
 import { config } from "./config.js";
 
-export const db = createClient(config.supabaseUrl, config.supabaseServiceKey, {
-  auth: { persistSession: false },
-});
+export const pool = new Pool({ connectionString: config.databaseUrl, max: 5 });
+
+// Las columnas `date` llegan como texto "AAAA-MM-DD" (como antes con PostgREST), no como Date de JS
+types.setTypeParser(1082, (v: string) => v);
+
+/** Ejecuta una consulta parametrizada. Los errores de Postgres traen `code` (p. ej. "23505" = duplicado). */
+export function query<T extends QueryResultRow = QueryResultRow>(text: string, values?: unknown[]) {
+  return pool.query<T>(text, values);
+}
 
 export type Source = {
   id: string;

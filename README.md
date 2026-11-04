@@ -7,32 +7,39 @@ Bot de captación de clientes con dashboard.
 | Frontend | Next.js + React + TypeScript + Tailwind + íconos [Lucide](https://lucide.dev) (`apps/web`) |
 | Backend / worker | Node.js + TypeScript (`apps/worker`) |
 | Automatización | Playwright (solo con permiso, ver abajo) |
-| Base de datos | PostgreSQL en Supabase (`supabase/migrations`) |
+| Base de datos | PostgreSQL en [Neon](https://neon.com) (`db/migrations`, acceso con `pg`) |
+| Login | Supabase Auth (solo inicio de sesión; los permisos viven en `public.app_users`) |
 | Colas | BullMQ + Redis |
 | Notificaciones | Telegram Bot API |
 | Programación | Cron jobs (BullMQ job schedulers, columna `sources.cron`) |
 
 ## Puesta en marcha
 
-1. **Base de datos**: en el SQL Editor de Supabase ejecuta, en orden, los archivos de `supabase/migrations/`:
-   `0001_init` → `0002_lead_management` → `0003_clients_projects` → `0004_catalog_quotes` → `0006_lead_external_id` → `0007_followups` → `0008_message_templates` → `0009_public_quotes` → `0010_lead_location` → `0011_site_audits` → `0012_mxn_currency` → `0013_restrict_access` (y, opcional, `0005_seed_features_example` con features de ejemplo). Crea un usuario en Authentication → Users.
+1. **Base de datos**: crea un proyecto en Neon y, con su URL directa (`DATABASE_URL_UNPOOLED`) y la pooled (`DATABASE_URL`), aplica las migraciones de `db/migrations/` en orden (se registran en `schema_migrations`, así que es seguro repetirlo):
+   ```bash
+   cd apps/web && npm run db:migrate
+   ```
+   Para dar acceso a una persona: primero debe existir en Supabase Auth (Authentication → Users), y luego agrega su id a `app_users`:
+   `insert into public.app_users (user_id, note) values ('<uuid>', 'socio');`
 2. **Redis**: `docker compose up -d`
-3. **Web**: copia `apps/web/.env.example` a `.env.local`, completa los valores y ejecuta
+3. **Web**: copia `apps/web/.env.example` a `.env.local`, completa los valores (incluye `DATABASE_URL`) y ejecuta
    ```bash
    cd apps/web && npm install && npm run dev
    ```
-4. **Worker**: copia `apps/worker/.env.example` a `.env` (usa la *service role key*, nunca en el frontend) y ejecuta
+4. **Worker**: copia `apps/worker/.env.example` a `.env` (`DATABASE_URL` de Neon; la service role de Supabase ya no se usa) y ejecuta
    ```bash
    cd apps/worker && npm install && npx playwright install chromium && npm run dev
    ```
 
 ## Despliegue
 
-- **Web (`apps/web`) → Vercel.** *Root Directory* = `apps/web`; variables `NEXT_PUBLIC_SUPABASE_URL` y `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`.
+- **Web (`apps/web`) → Vercel.** *Root Directory* = `apps/web`; variables `DATABASE_URL` (Neon, pooled), `NEXT_PUBLIC_SUPABASE_URL` y `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` (login).
 - **Worker (`apps/worker`) + Redis → Railway.**
   1. En el proyecto de Railway agrega un servicio Redis (base de datos) y otro servicio desde este repo con *Root Directory* = `apps/worker` (Railway detecta y usa el `Dockerfile`).
-  2. Variables del worker: `REDIS_URL` (referencia `${{Redis.REDIS_URL}}`), `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`, `USER_AGENT`.
+  2. Variables del worker: `REDIS_URL` (referencia `${{Redis.REDIS_URL}}`), `DATABASE_URL` (Neon, conexión directa), `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`, `USER_AGENT`.
   3. Comprueba que Redis use la política de memoria `noeviction` (requisito de BullMQ).
+  4. El worker de Railway atiende el bot de Telegram, las auditorías, las cotizaciones y el botón "Ejecutar ahora".
+- **Trabajos programados → GitHub Actions** (`.github/workflows/scheduled-jobs.yml`). Cada 15 minutos ejecuta las fuentes cuyo cron ya venció y el resumen diario (`DIGEST_CRON`). No necesita Redis. Secretos del repo (*Settings → Secrets and variables → Actions*): `DATABASE_URL` (Neon, conexión directa), `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`, `BUSINESS_NAME`, `DASHBOARD_URL` y `DENUE_TOKEN`. Si una fuente usa otra variable en su URL (`{{env.NOMBRE}}`), agrégala también al workflow. Los crons de las fuentes se interpretan en UTC; GitHub puede retrasar las corridas unos minutos.
 
 El Redis puede ser cualquier proveedor: el worker solo lee `REDIS_URL` (usa `rediss://` si es TLS).
 
@@ -55,14 +62,14 @@ Es una PWA: se puede instalar en el celular o escritorio. Variable opcional en V
 
 - Cada fila de `sources` con `enabled = true` y `cron` definido se programa como cron job en BullMQ.
 - El worker ejecuta el colector según `kind` (`api` o `web`), inserta prospectos sin duplicar (por email o sitio web), registra la ejecución en `job_runs` y avisa por Telegram.
-- El dashboard lee todo desde Supabase con RLS (solo usuarios autenticados).
+- El dashboard lee y escribe sus datos en Neon desde el servidor (Server Actions y páginas), y solo entran usuarios de `app_users`.
 
 ## Prospectos reales de Nuevo León (DENUE de INEGI)
 
 [DENUE](https://www.inegi.org.mx/servicios/api_denue.html) es el directorio oficial y gratuito de negocios de México (nombre, giro, teléfono, correo, sitio web). Pasos:
 
 1. Solicita un token gratuito de DENUE en INEGI y agrégalo como variable `DENUE_TOKEN` en el servicio del worker (Railway). El token no se guarda en la base de datos.
-2. Ejecuta `supabase/migrations/0006_lead_external_id.sql`.
+2. Aplica las migraciones pendientes con `npm run db:migrate` (incluye `0006_lead_external_id.sql`).
 3. **Forma fácil:** en **Fuentes → Asistente DENUE** eliges el giro (dentistas, restaurantes, abogados, talleres…), el municipio de Nuevo León (los 51), la frecuencia y los filtros, y la fuente se arma sola. También puedes usar una palabra clave para giros que no estén en la lista.
    **A mano:** en **Fuentes → Nueva fuente** crea una fuente tipo API:
    - **URL:** `https://www.inegi.org.mx/app/api/denue/v1/consulta/BuscarEntidad/dentista/19/{{from}}/{{to}}/{{env.DENUE_TOKEN}}` (`19` = Nuevo León; cambia `dentista` por el giro que buscas)
