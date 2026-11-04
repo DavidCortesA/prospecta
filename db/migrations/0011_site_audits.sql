@@ -18,10 +18,6 @@ create table public.site_audits (
 create index site_audits_lead_idx on public.site_audits (lead_id, created_at desc);
 create index site_audits_open_idx on public.site_audits (status) where status in ('pending', 'running');
 
-alter table public.site_audits enable row level security;
-create policy "auth all site_audits" on public.site_audits
-  for all to authenticated using (true) with check (true);
-
 -- Plantilla de ejemplo que usa el hallazgo de la auditoría ({{hallazgo}})
 insert into public.message_templates (name, channel, subject, body, is_default) values
   ('Sitio con problemas', 'whatsapp', null,

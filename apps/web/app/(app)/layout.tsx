@@ -3,6 +3,7 @@ import { LogOut } from "lucide-react";
 import { createClient } from "@/lib/server";
 import { AppShell } from "@/components/app-shell";
 import { firstName } from "@/lib/format";
+import { getAppUser } from "@/lib/auth";
 
 async function UserFooter() {
   const supabase = await createClient();
@@ -34,9 +35,8 @@ async function UserFooter() {
  * Si la función aún no existe (migración sin aplicar) no se bloquea a nadie.
  */
 async function AccessGate({ children }: { children: ReactNode }) {
-  const supabase = await createClient();
-  const { data, error } = await supabase.rpc("is_app_user");
-  if (!error && data === false) {
+  const user = await getAppUser();
+  if (!user) {
     return (
       <div className="mx-auto mt-16 max-w-md rounded-2xl border bg-card p-8 text-center shadow-sm">
         <h1 className="text-xl font-extrabold tracking-tight">Tu cuenta no tiene acceso</h1>

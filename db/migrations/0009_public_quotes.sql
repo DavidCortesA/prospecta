@@ -1,5 +1,6 @@
 -- Cotización pública: el cliente abre un enlace (sin iniciar sesión), la revisa y puede aceptarla.
 -- El acceso anónimo NO toca las tablas: solo ejecuta dos funciones que exigen el token secreto del enlace.
+-- (La app llama estas funciones desde el servidor; no hay roles anon/authenticated en Neon.)
 
 alter table public.quotes
   add column if not exists share_token         text,
@@ -112,7 +113,3 @@ begin
   return jsonb_build_object('ok', true);
 end $$;
 
-revoke all on function public.public_quote(text, boolean) from public;
-revoke all on function public.accept_public_quote(text, text, text) from public;
-grant execute on function public.public_quote(text, boolean) to anon, authenticated;
-grant execute on function public.accept_public_quote(text, text, text) to anon, authenticated;

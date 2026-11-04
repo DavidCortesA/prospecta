@@ -1,9 +1,24 @@
 import { config } from "./config.js";
-import { db } from "./db.js";
+import { query } from "./db.js";
 import { changeStatus, getLead } from "./leads.js";
 import { escapeHtml, notify, type Keyboard } from "./telegram.js";
 
 type Item = { qty: number; unit_price: number };
+
+type AcceptedQuote = {
+  id: string;
+  number: number;
+  title: string;
+  discount_pct: string | number;
+  tax_pct: string | number;
+  lead_id: string | null;
+  customer_name: string;
+  accepted_name: string | null;
+  client_comment: string | null;
+  quote_items: Item[];
+};
+
+type ViewedQuote = { id: string; number: number; title: string; customer_name: string; view_count: number };
 
 // Todo el sistema trabaja en pesos mexicanos: $1,500.00
 const money = (n: number) => new Intl.NumberFormat("es-MX", { style: "currency", currency: "MXN" }).format(n);
@@ -25,32 +40,37 @@ const dashboardButton = (quoteId: string): Keyboard | undefined =>
  * Cada evento se "reclama" con un update condicional para no procesarlo dos veces.
  */
 export async function pollQuoteEvents(): Promise<void> {
-  const { data: accepted, error } = await db
-    .from("quotes")
-    .select("id, number, title, discount_pct, tax_pct, lead_id, customer_name, accepted_name, client_comment, quote_items(qty, unit_price)")
-    .not("accepted_at", "is", null)
-    .is("accepted_notified_at", null)
-    .limit(10);
-  if (error) return; // las columnas no existen si falta la migración 0009
+  let accepted: AcceptedQuote[];
+  try {
+    // quote_items: relación embebida como arreglo de { qty, unit_price }
+    ({ rows: accepted } = await query<AcceptedQuote>(
+      `SELECT q.id, q.number, q.title, q.discount_pct, q.tax_pct, q.lead_id, q.customer_name, q.accepted_name, q.client_comment,
+              COALESCE((SELECT json_agg(json_build_object('qty', i.qty, 'unit_price', i.unit_price) ORDER BY i.position)
+                          FROM quote_items i WHERE i.quote_id = q.id), '[]'::json) AS quote_items
+         FROM quotes q
+        WHERE q.accepted_at IS NOT NULL AND q.accepted_notified_at IS NULL
+        LIMIT 10`
+    ));
+  } catch {
+    return; // las columnas no existen si falta la migración 0009
+  }
 
-  for (const q of accepted ?? []) {
-    const { data: claimed } = await db
-      .from("quotes")
-      .update({ accepted_notified_at: new Date().toISOString() })
-      .eq("id", q.id)
-      .is("accepted_notified_at", null)
-      .select("id");
-    if (!claimed?.length) continue;
+  for (const q of accepted) {
+    const claimed = await query(
+      "UPDATE quotes SET accepted_notified_at = $1 WHERE id = $2 AND accepted_notified_at IS NULL RETURNING id",
+      [new Date().toISOString(), q.id]
+    ).then((r) => r.rows, () => []);
+    if (!claimed.length) continue;
 
-    const amount = total(q.quote_items as Item[], Number(q.discount_pct), Number(q.tax_pct));
+    const amount = total(q.quote_items, Number(q.discount_pct), Number(q.tax_pct));
     let followUp = "";
 
     if (q.lead_id) {
       const lead = await getLead(q.lead_id);
       if (lead && lead.status !== "won") await changeStatus(q.lead_id, "won", { dealValue: amount });
-      const { data: client } = await db.from("clients").select("id").eq("lead_id", q.lead_id).maybeSingle();
+      const client = await query<{ id: string }>("SELECT id FROM clients WHERE lead_id = $1", [q.lead_id]).then((r) => r.rows[0], () => undefined);
       if (client) {
-        await db.from("quotes").update({ client_id: client.id }).eq("id", q.id);
+        await query("UPDATE quotes SET client_id = $1 WHERE id = $2", [client.id, q.id]).catch(() => {});
         followUp = "\nSe creó el cliente y su proyecto en el dashboard.";
       }
     }
@@ -64,22 +84,17 @@ export async function pollQuoteEvents(): Promise<void> {
     );
   }
 
-  const { data: viewed } = await db
-    .from("quotes")
-    .select("id, number, title, customer_name, view_count")
-    .not("viewed_at", "is", null)
-    .is("viewed_notified_at", null)
-    .is("accepted_at", null)
-    .limit(10);
+  const viewed = await query<ViewedQuote>(
+    `SELECT id, number, title, customer_name, view_count FROM quotes
+      WHERE viewed_at IS NOT NULL AND viewed_notified_at IS NULL AND accepted_at IS NULL LIMIT 10`
+  ).then((r) => r.rows, () => []);
 
-  for (const q of viewed ?? []) {
-    const { data: claimed } = await db
-      .from("quotes")
-      .update({ viewed_notified_at: new Date().toISOString() })
-      .eq("id", q.id)
-      .is("viewed_notified_at", null)
-      .select("id");
-    if (!claimed?.length) continue;
+  for (const q of viewed) {
+    const claimed = await query(
+      "UPDATE quotes SET viewed_notified_at = $1 WHERE id = $2 AND viewed_notified_at IS NULL RETURNING id",
+      [new Date().toISOString(), q.id]
+    ).then((r) => r.rows, () => []);
+    if (!claimed.length) continue;
 
     await notify(
       `👀 <b>${escapeHtml(q.customer_name)}</b> abrió la cotización ${quoteNumber(q.number)}\n${escapeHtml(q.title)}`,

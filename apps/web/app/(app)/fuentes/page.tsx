@@ -1,6 +1,6 @@
 import { Suspense } from "react";
 import { MapPinned, Pause, Play, PlayCircle, Plus, RotateCcw, Trash2 } from "lucide-react";
-import { createClient } from "@/lib/server";
+import { dbRows } from "@/lib/db";
 import { dateTime, timeAgo } from "@/lib/format";
 import { Badge, Card, EmptyState, PageHeader, btn, inputCls } from "@/components/ui-kit";
 import { cn } from "@/lib/utils";
@@ -89,12 +89,10 @@ function SourceForm({
 
 async function Sources({ searchParams }: { searchParams: PageProps<"/fuentes">["searchParams"] }) {
   const { error } = await searchParams;
-  const supabase = await createClient();
-
   const [{ data: sources }, { data: runs }, { data: leads }] = await Promise.all([
-    supabase.from("sources").select("*").order("created_at", { ascending: false }),
-    supabase.from("job_runs").select("source_id, status, found, inserted, error, started_at").order("started_at", { ascending: false }).limit(300),
-    supabase.from("leads").select("source_id").limit(5000),
+    dbRows("select * from sources order by created_at desc"),
+    dbRows("select source_id, status, found, inserted, error, started_at from job_runs order by started_at desc limit 300"),
+    dbRows("select source_id from leads limit 5000"),
   ]);
 
   const leadCount = new Map<string, number>();

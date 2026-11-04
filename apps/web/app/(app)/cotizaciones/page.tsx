@@ -1,7 +1,7 @@
 import { Suspense } from "react";
 import Link from "next/link";
 import { Plus } from "lucide-react";
-import { createClient } from "@/lib/server";
+import { dbRows } from "@/lib/db";
 import { QUOTE_LABEL, QUOTE_STATUSES, QUOTE_TONE, type QuoteStatus } from "@/lib/constants";
 import { dateShort, money } from "@/lib/format";
 import { calcTotals, quoteNumber } from "@/lib/quotes";
@@ -33,12 +33,11 @@ async function List({ searchParams }: { searchParams: PageProps<"/cotizaciones">
   const sp = await searchParams;
   const status = typeof sp.status === "string" && (QUOTE_STATUSES as readonly string[]).includes(sp.status) ? sp.status : "";
 
-  const supabase = await createClient();
-  const { data, error } = await supabase
-    .from("quotes")
-    .select("id, number, title, status, customer_name, customer_company, discount_pct, tax_pct, created_at, valid_until, quote_items(qty, unit_price)")
-    .order("created_at", { ascending: false })
-    .limit(300);
+  const { data, error } = await dbRows(
+    `select q.id, q.number, q.title, q.status, q.customer_name, q.customer_company, q.discount_pct, q.tax_pct, q.created_at, q.valid_until,
+       coalesce((select json_agg(json_build_object('qty', i.qty, 'unit_price', i.unit_price)) from quote_items i where i.quote_id = q.id), '[]'::json) as quote_items
+     from quotes q order by q.created_at desc limit 300`
+  );
 
   if (isMissingTable(error)) return <MigrationNotice file="0004_catalog_quotes.sql" />;
 

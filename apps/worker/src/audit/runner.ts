@@ -1,5 +1,5 @@
 import { config } from "../config.js";
-import { db } from "../db.js";
+import { query } from "../db.js";
 import { getLead } from "../leads.js";
 import { escapeHtml, notify, type Keyboard } from "../telegram.js";
 import { AuditError, auditSite, type Issue } from "./site.js";
@@ -14,16 +14,22 @@ export type RequestResult = "queued" | "already" | "no_website" | "unavailable";
 
 /** Encola la revisión del sitio de un prospecto (si no hay ya una en curso). */
 export async function requestAudit(leadId: string): Promise<RequestResult> {
-  const { data: lead } = await db.from("leads").select("website").eq("id", leadId).maybeSingle();
+  const lead = await query<{ website: string | null }>("SELECT website FROM leads WHERE id = $1", [leadId]).then((r) => r.rows[0], () => undefined);
   const url = normalizeWebsite(lead?.website as string | null | undefined);
   if (!url) return "no_website";
 
-  const { data: open, error } = await db.from("site_audits").select("id").eq("lead_id", leadId).in("status", ["pending", "running"]).limit(1);
-  if (error) return "unavailable"; // falta la migración 0011
-  if (open?.length) return "already";
+  let open: { id: string }[];
+  try {
+    ({ rows: open } = await query<{ id: string }>("SELECT id FROM site_audits WHERE lead_id = $1 AND status IN ('pending', 'running') LIMIT 1", [leadId]));
+  } catch {
+    return "unavailable"; // falta la migración 0011
+  }
+  if (open.length) return "already";
 
-  const { error: insertError } = await db.from("site_audits").insert({ lead_id: leadId, url });
-  return insertError ? "unavailable" : "queued";
+  return query("INSERT INTO site_audits (lead_id, url) VALUES ($1, $2)", [leadId, url]).then(
+    () => "queued" as const,
+    () => "unavailable" as const
+  );
 }
 
 const withTimeout = <T>(p: Promise<T>, ms: number) =>
@@ -40,23 +46,30 @@ export async function pollSiteAudits(): Promise<void> {
   if (busy) return;
   busy = true;
   try {
-    await db
-      .from("site_audits")
-      .update({ status: "failed", error: "Se interrumpió la revisión (reinicio del servidor). Vuelve a intentarlo.", finished_at: new Date().toISOString() })
-      .eq("status", "running")
-      .lt("created_at", new Date(Date.now() - STALE_RUNNING_MS).toISOString());
+    await query(
+      "UPDATE site_audits SET status = 'failed', error = $1, finished_at = $2 WHERE status = 'running' AND created_at < $3",
+      [
+        "Se interrumpió la revisión (reinicio del servidor). Vuelve a intentarlo.",
+        new Date().toISOString(),
+        new Date(Date.now() - STALE_RUNNING_MS).toISOString(),
+      ]
+    ).catch(() => {});
 
-    const { data: pending, error } = await db
-      .from("site_audits")
-      .select("id, lead_id, url")
-      .eq("status", "pending")
-      .order("created_at", { ascending: true })
-      .limit(1);
-    if (error) return; // falta la migración 0011
+    let pending: { id: string; lead_id: string; url: string }[];
+    try {
+      ({ rows: pending } = await query<{ id: string; lead_id: string; url: string }>(
+        "SELECT id, lead_id, url FROM site_audits WHERE status = 'pending' ORDER BY created_at ASC LIMIT 1"
+      ));
+    } catch {
+      return; // falta la migración 0011
+    }
 
-    for (const audit of pending ?? []) {
-      const { data: claimed } = await db.from("site_audits").update({ status: "running" }).eq("id", audit.id).eq("status", "pending").select("id");
-      if (!claimed?.length) continue;
+    for (const audit of pending) {
+      const claimed = await query("UPDATE site_audits SET status = 'running' WHERE id = $1 AND status = 'pending' RETURNING id", [audit.id]).then(
+        (r) => r.rows,
+        () => []
+      );
+      if (!claimed.length) continue;
       await run(audit);
     }
   } finally {
@@ -73,19 +86,20 @@ async function run(audit: { id: string; lead_id: string; url: string }) {
 
   try {
     const result = await withTimeout(auditSite(audit.url), AUDIT_TIMEOUT_MS);
-    await db
-      .from("site_audits")
-      .update({
-        status: "done",
-        url: result.finalUrl,
-        score: result.score,
-        headline: result.headline,
-        metrics: result.metrics,
-        issues: result.issues,
-        screenshot: result.screenshot,
-        finished_at: new Date().toISOString(),
-      })
-      .eq("id", audit.id);
+    await query(
+      `UPDATE site_audits SET status = 'done', url = $1, score = $2, headline = $3, metrics = $4::jsonb, issues = $5::jsonb,
+              screenshot = $6, finished_at = $7 WHERE id = $8`,
+      [
+        result.finalUrl,
+        result.score,
+        result.headline,
+        JSON.stringify(result.metrics),
+        JSON.stringify(result.issues),
+        result.screenshot,
+        new Date().toISOString(),
+        audit.id,
+      ]
+    ).catch(() => {});
 
     const top = result.issues.slice(0, 4).map((i) => `${SEVERITY_ICON[i.severity]} ${escapeHtml(i.title)}`);
     await notify(
@@ -98,7 +112,9 @@ async function run(audit: { id: string; lead_id: string; url: string }) {
   } catch (err) {
     const message = err instanceof AuditError ? err.message : "No se pudo revisar el sitio";
     if (!(err instanceof AuditError)) console.error("Auditoría falló:", (err as Error).message);
-    await db.from("site_audits").update({ status: "failed", error: message, finished_at: new Date().toISOString() }).eq("id", audit.id);
+    await query("UPDATE site_audits SET status = 'failed', error = $1, finished_at = $2 WHERE id = $3", [message, new Date().toISOString(), audit.id]).catch(
+      () => {}
+    );
     await notify(`⚠️ <b>No se pudo revisar el sitio</b>\n${escapeHtml(label)}\n${escapeHtml(message)}`, button);
   }
 }

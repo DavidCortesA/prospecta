@@ -1,6 +1,6 @@
 import { Suspense } from "react";
 import { Plus, Trash2 } from "lucide-react";
-import { createClient } from "@/lib/server";
+import { dbRows } from "@/lib/db";
 import { money } from "@/lib/format";
 import { Badge, Card, EmptyState, MigrationNotice, PageHeader, btn, inputCls, isMissingTable } from "@/components/ui-kit";
 import { createFeature, deleteFeature, toggleFeature, updateFeature } from "./actions";
@@ -40,8 +40,7 @@ function FeatureForm({ action, f, submit }: { action: (fd: FormData) => Promise<
 
 async function Catalog({ searchParams }: { searchParams: PageProps<"/catalogo">["searchParams"] }) {
   const { error: errorParam } = await searchParams;
-  const supabase = await createClient();
-  const { data, error } = await supabase.from("features").select("*").order("category").order("name");
+  const { data, error } = await dbRows("select * from features order by category, name");
 
   if (isMissingTable(error)) return <MigrationNotice file="0004_catalog_quotes.sql" />;
 

@@ -10,7 +10,7 @@
  * - No manda avisos de Telegram por prospecto: manda un solo resumen al final.
  */
 import "dotenv/config";
-import { db } from "../src/db.js";
+import { query } from "../src/db.js";
 import { notify } from "../src/telegram.js";
 
 const args = process.argv.slice(2);
@@ -85,8 +85,8 @@ const candidates = places.filter((p) => {
 });
 
 // 3) Duplicados contra lo que ya existe (por teléfono)
-const { data: existing } = await db.from("leads").select("phone");
-const knownPhones = new Set((existing ?? []).map((l) => last10(l.phone)).filter((p) => p.length === 10));
+const existing = await query<{ phone: string | null }>("SELECT phone FROM leads").then((r) => r.rows, () => []);
+const knownPhones = new Set(existing.map((l) => last10(l.phone)).filter((p) => p.length === 10));
 const seen = new Set<string>();
 const fresh = candidates.filter((p) => {
   const ph = last10(phoneOf(p));
@@ -103,23 +103,21 @@ if (dryRun) {
 if (!fresh.length) process.exit(0);
 
 // 4) Fuente (una por nombre)
-let { data: source } = await db.from("sources").select("id").eq("name", sourceName).maybeSingle();
-if (!source) {
-  const created = await db
-    .from("sources")
-    .insert({
-      name: sourceName,
-      kind: "manual", // importación puntual: el worker no la ejecuta
-      cron: null,
-      enabled: true,
-      config: { importedFrom: "apify:compass/crawler-google-places", datasetId },
-    })
-    .select("id")
-    .single();
-  if (created.error) throw new Error(`No se pudo crear la fuente: ${created.error.message}`);
-  source = created.data;
+// Como antes con maybeSingle: si hay más de una fuente con ese nombre, se trata como si no existiera
+const found = await query<{ id: string }>("SELECT id FROM sources WHERE name = $1", [sourceName]).then((r) => r.rows, () => []);
+let sourceId = found.length === 1 ? found[0].id : undefined;
+if (!sourceId) {
+  try {
+    sourceId = (
+      await query<{ id: string }>(
+        "INSERT INTO sources (name, kind, cron, enabled, config) VALUES ($1, 'manual', NULL, true, $2::jsonb) RETURNING id", // importación puntual: el worker no la ejecuta
+        [sourceName, JSON.stringify({ importedFrom: "apify:compass/crawler-google-places", datasetId })]
+      )
+    ).rows[0].id;
+  } catch (err) {
+    throw new Error(`No se pudo crear la fuente: ${(err as Error).message}`);
+  }
 }
-const sourceId = source!.id as string;
 
 // 5) Prospectos
 const rows = fresh.map((p) => {
@@ -158,21 +156,30 @@ let skipped = 0;
 const insertedIds: { id: string; place: Place }[] = [];
 const placeById = new Map(fresh.map((p) => [p.placeId!, p]));
 
+// Inserta varios prospectos en una sola sentencia (columnas fijas; los valores van como parámetros)
+const LEAD_COLS = ["source_id", "external_id", "name", "company", "phone", "email", "website", "city", "address", "lat", "lng", "notes", "score", "raw"];
+function insertLeads(chunk: Record<string, unknown>[]) {
+  const values = chunk.flatMap((r) => LEAD_COLS.map((c) => (c === "raw" ? JSON.stringify(r[c]) : r[c])));
+  const marks = chunk.map((_, i) => `(${LEAD_COLS.map((c, j) => `$${i * LEAD_COLS.length + j + 1}${c === "raw" ? "::jsonb" : ""}`).join(", ")})`);
+  return query<{ id: string; external_id: string }>(`INSERT INTO leads (${LEAD_COLS.join(", ")}) VALUES ${marks.join(", ")} RETURNING id, external_id`, values);
+}
+
 for (let i = 0; i < rows.length; i += 50) {
   const chunk = rows.slice(i, i + 50);
-  const { data, error } = await db.from("leads").insert(chunk).select("id, external_id");
-  if (!error && data) {
-    inserted += data.length;
-    for (const d of data) insertedIds.push({ id: d.id as string, place: placeById.get(d.external_id as string)! });
+  const batch = await insertLeads(chunk).then((r) => r.rows, () => null);
+  if (batch) {
+    inserted += batch.length;
+    for (const d of batch) insertedIds.push({ id: d.id, place: placeById.get(d.external_id)! });
     continue;
   }
   // Un duplicado (correo repetido, etc.) tumba el lote completo: se reintenta fila por fila.
   for (const row of chunk) {
-    const one = await db.from("leads").insert(row).select("id, external_id").single();
-    if (one.error) skipped++;
-    else {
+    try {
+      const [one] = (await insertLeads([row])).rows;
       inserted++;
-      insertedIds.push({ id: one.data.id as string, place: placeById.get(one.data.external_id as string)! });
+      insertedIds.push({ id: one.id, place: placeById.get(one.external_id)! });
+    } catch {
+      skipped++;
     }
   }
 }
@@ -180,7 +187,6 @@ for (let i = 0; i < rows.length; i += 50) {
 // 6) Una nota en la bitácora con lo que aporta Google Maps (calificación, reseñas, perfil sin reclamar)
 const notes = insertedIds.map(({ id, place }) => ({
   lead_id: id,
-  type: "note",
   payload: {
     via: "import-apify",
     text:
@@ -188,7 +194,14 @@ const notes = insertedIds.map(({ id, place }) => ({
       `${place.claimThisBusiness ? " · perfil de Google sin reclamar" : ""} · búsqueda: ${place.searchString ?? "—"}`,
   },
 }));
-for (let i = 0; i < notes.length; i += 100) await db.from("lead_events").insert(notes.slice(i, i + 100));
+for (let i = 0; i < notes.length; i += 100) {
+  const chunk = notes.slice(i, i + 100);
+  // Si falla, la bitácora se omite (como antes, el error se ignoraba)
+  await query(
+    `INSERT INTO lead_events (lead_id, type, payload) VALUES ${chunk.map((_, j) => `($${j * 2 + 1}, 'note', $${j * 2 + 2}::jsonb)`).join(", ")}`,
+    chunk.flatMap((n) => [n.lead_id, JSON.stringify(n.payload)])
+  ).catch(() => {});
+}
 
 console.log(`importados: ${inserted} | omitidos por duplicado: ${skipped}`);
 await notify(

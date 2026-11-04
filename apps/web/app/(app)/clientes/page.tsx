@@ -1,7 +1,7 @@
 import { Suspense } from "react";
 import Link from "next/link";
 import { Plus } from "lucide-react";
-import { createClient } from "@/lib/server";
+import { dbRows } from "@/lib/db";
 import { PROJECT_LABEL, type ProjectStatus } from "@/lib/constants";
 import { pct } from "@/lib/format";
 import { Badge, Card, EmptyState, MigrationNotice, PageHeader, Progress, btn, inputCls, isMissingTable } from "@/components/ui-kit";
@@ -22,12 +22,13 @@ export default function Page(props: PageProps<"/clientes">) {
 
 async function Customers({ searchParams }: { searchParams: PageProps<"/clientes">["searchParams"] }) {
   const { error: errorParam } = await searchParams;
-  const supabase = await createClient();
-
-  const { data: clients, error } = await supabase
-    .from("clients")
-    .select("id, name, company, email, created_at, projects(id, name, status, project_milestones(done))")
-    .order("created_at", { ascending: false });
+  const { data: clients, error } = await dbRows(
+    `select c.id, c.name, c.company, c.email, c.created_at,
+       coalesce((select json_agg(json_build_object('id', p.id, 'name', p.name, 'status', p.status,
+         'project_milestones', coalesce((select json_agg(json_build_object('done', m.done)) from project_milestones m where m.project_id = p.id), '[]'::json)))
+         from projects p where p.client_id = c.id), '[]'::json) as projects
+     from clients c order by c.created_at desc`
+  );
 
   if (isMissingTable(error)) return <MigrationNotice file="0003_clients_projects.sql" />;
 

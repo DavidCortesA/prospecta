@@ -2,7 +2,7 @@ import { Suspense } from "react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft, ArrowRightLeft, FileText, Mail, MessageCircle, Sparkles, StickyNote, Trophy, XCircle, type LucideIcon } from "lucide-react";
-import { createClient } from "@/lib/server";
+import { dbRow, dbRows } from "@/lib/db";
 import { LEAD_STATUSES, STATUS_LABEL, type LeadStatus } from "@/lib/constants";
 import { dateTime, dayLabel, followupState, money, timeAgo, todayKey } from "@/lib/format";
 import { Card, CardHeader, LinkButton, StatusBadge, btn, inputCls, isMissingTable } from "@/components/ui-kit";
@@ -29,16 +29,19 @@ async function Detail({
 }) {
   const { id } = await params;
   const { error } = await searchParams;
-  const supabase = await createClient();
-
   const [{ data: lead }, { data: events }, { data: client }, { data: templates }, auditRes] = await Promise.all([
-    supabase.from("leads").select("*, sources(name)").eq("id", id).maybeSingle(),
-    supabase.from("lead_events").select("id, type, payload, created_at").eq("lead_id", id).order("created_at", { ascending: false }).limit(50),
-    supabase.from("clients").select("id").eq("lead_id", id).maybeSingle(),
+    dbRow(
+      "select l.*, (select json_build_object('name', s.name) from sources s where s.id = l.source_id) as sources from leads l where l.id = $1",
+      [id]
+    ),
+    dbRows("select id, type, payload, created_at from lead_events where lead_id = $1 order by created_at desc limit 50", [id]),
+    dbRow<{ id: string }>("select id from clients where lead_id = $1", [id]),
     // Si la migración 0008 no está aplicada devuelve error y simplemente no se muestran plantillas
-    supabase.from("message_templates").select("id, name, channel, subject, body, is_default").eq("active", true).order("is_default", { ascending: false }).order("created_at"),
+    dbRows(
+      "select id, name, channel, subject, body, is_default from message_templates where active = true order by is_default desc, created_at"
+    ),
     // Última revisión del sitio web (si falta la migración 0011 devuelve error y se muestra el aviso)
-    supabase.from("site_audits").select("*").eq("lead_id", id).order("created_at", { ascending: false }).limit(1).maybeSingle(),
+    dbRow("select * from site_audits where lead_id = $1 order by created_at desc limit 1", [id]),
   ]);
   if (!lead) notFound();
 

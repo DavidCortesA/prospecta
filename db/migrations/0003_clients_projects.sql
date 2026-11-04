@@ -42,10 +42,3 @@ create index milestones_project_idx on public.project_milestones (project_id, po
 create trigger projects_touch before update on public.projects
 for each row execute function public.touch_updated_at();
 
-alter table public.clients            enable row level security;
-alter table public.projects           enable row level security;
-alter table public.project_milestones enable row level security;
-
-create policy "auth all clients"    on public.clients            for all to authenticated using (true) with check (true);
-create policy "auth all projects"   on public.projects           for all to authenticated using (true) with check (true);
-create policy "auth all milestones" on public.project_milestones for all to authenticated using (true) with check (true);

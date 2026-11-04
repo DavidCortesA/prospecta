@@ -1,6 +1,6 @@
 import { Suspense } from "react";
 import { Mail, MessageCircle, Plus, Trash2 } from "lucide-react";
-import { createClient } from "@/lib/server";
+import { dbRows } from "@/lib/db";
 import { renderTemplate, templateVars, TEMPLATE_VARIABLES } from "@/lib/templates";
 import { Badge, Card, EmptyState, MigrationNotice, PageHeader, btn, inputCls, isMissingTable } from "@/components/ui-kit";
 import { createTemplate, deleteTemplate, setDefaultTemplate, toggleTemplate, updateTemplate } from "./actions";
@@ -41,8 +41,7 @@ function TemplateForm({ action, t, submit }: { action: (fd: FormData) => Promise
 
 async function Templates({ searchParams }: { searchParams: PageProps<"/plantillas">["searchParams"] }) {
   const { error: errorParam } = await searchParams;
-  const supabase = await createClient();
-  const { data, error } = await supabase.from("message_templates").select("*").order("channel").order("created_at");
+  const { data, error } = await dbRows("select * from message_templates order by channel, created_at");
 
   if (isMissingTable(error)) return <MigrationNotice file="0008_message_templates.sql" />;
 

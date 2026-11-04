@@ -1,7 +1,7 @@
 import { Suspense } from "react";
 import Link from "next/link";
 import { AlarmClock, Plus, Search } from "lucide-react";
-import { createClient } from "@/lib/server";
+import { dbRow, dbRows } from "@/lib/db";
 import { LEAD_STATUSES, STATUS_LABEL, type LeadStatus } from "@/lib/constants";
 import { dateShort, dayLabel, followupState, timeAgo, todayKey } from "@/lib/format";
 import { Card, EmptyState, LinkButton, MigrationNotice, PageHeader, StatusBadge, TableShell, btn, inputCls, isMissingColumn } from "@/components/ui-kit";
@@ -38,25 +38,37 @@ async function List({ searchParams }: { searchParams: PageProps<"/prospectos">["
   const due = sp.due === "1";
   const today = todayKey();
 
-  const supabase = await createClient();
-
-  let query = supabase
-    .from("leads")
-    .select("id, name, company, email, phone, city, status, score, deal_value, next_followup, created_at, sources(name)", { count: "exact" })
-    .order("created_at", { ascending: false })
-    .range((page - 1) * PAGE_SIZE, page * PAGE_SIZE - 1);
-  if (status) query = query.eq("status", status);
-  if (due) query = query.lte("next_followup", today).not("status", "in", "(won,lost)");
+  // Filtros con valores enlazados ($n); las columnas son fijas
+  const where: string[] = [];
+  const values: unknown[] = [];
+  if (status) {
+    values.push(status);
+    where.push(`status = $${values.length}`);
+  }
+  if (due) {
+    values.push(today);
+    where.push(`next_followup <= $${values.length}`, "status not in ('won', 'lost')");
+  }
   if (q) {
     const term = q.replace(/[%,()]/g, " ");
-    query = query.or(`name.ilike.%${term}%,company.ilike.%${term}%,email.ilike.%${term}%,phone.ilike.%${term}%`);
+    values.push(`%${term}%`);
+    const p = `$${values.length}`;
+    where.push(`(name ilike ${p} or company ilike ${p} or email ilike ${p} or phone ilike ${p})`);
   }
+  const whereSql = where.length ? `where ${where.join(" and ")}` : "";
+  const limit = values.length + 1;
 
-  const [{ data: leads, count, error: listError }, { data: all }, { count: dueCount }] = await Promise.all([
-    query,
-    supabase.from("leads").select("status").limit(5000),
-    supabase.from("leads").select("*", { count: "exact", head: true }).lte("next_followup", today).not("status", "in", "(won,lost)"),
+  const [{ data: leads, error: listError }, { data: countRow }, { data: all }, { data: dueRow }] = await Promise.all([
+    dbRows(
+      `select id, name, company, email, phone, city, status, score, deal_value, next_followup, created_at, (select json_build_object('name', s.name) from sources s where s.id = leads.source_id) as sources from leads ${whereSql} order by created_at desc limit $${limit} offset $${limit + 1}`,
+      [...values, PAGE_SIZE, (page - 1) * PAGE_SIZE]
+    ),
+    dbRow<{ n: number }>(`select count(*)::int as n from leads ${whereSql}`, values),
+    dbRows<{ status: string }>("select status from leads limit 5000"),
+    dbRow<{ n: number }>("select count(*)::int as n from leads where next_followup <= $1 and status not in ('won', 'lost')", [today]),
   ]);
+  const count = countRow?.n;
+  const dueCount = dueRow?.n;
 
   if (isMissingColumn(listError)) return <MigrationNotice file="0007_followups.sql" />;
 

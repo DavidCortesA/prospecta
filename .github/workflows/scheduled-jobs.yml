@@ -1,0 +1,44 @@
+name: Trabajos programados
+
+# Ejecuta cada 15 minutos las fuentes cuyo cron ya venció y el resumen diario de Telegram.
+# El bot, las auditorías y "Ejecutar ahora" siguen en el worker de Railway.
+on:
+  schedule:
+    - cron: "*/15 * * * *"
+  workflow_dispatch:
+
+# Dos corridas no deben pisarse (las fuentes escriben en la misma base)
+concurrency:
+  group: trabajos-programados
+  cancel-in-progress: false
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    defaults:
+      run:
+        working-directory: apps/worker
+    env:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+      BUSINESS_NAME: ${{ secrets.BUSINESS_NAME }}
+      DASHBOARD_URL: ${{ secrets.DASHBOARD_URL }}
+      # Tokens que usan las URLs de las fuentes ({{env.NOMBRE}}): agrega aquí cada uno que necesites
+      DENUE_TOKEN: ${{ secrets.DENUE_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: apps/worker/package-lock.json
+
+      - run: npm ci
+
+      - name: Chromium para los colectores web
+        run: npx playwright install --with-deps chromium
+
+      - run: npm run jobs:scheduled

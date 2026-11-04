@@ -14,10 +14,6 @@ create table public.message_templates (
 -- Una sola plantilla por defecto por canal (la que usa el botón de WhatsApp de Telegram)
 create unique index message_templates_default_uniq on public.message_templates (channel) where is_default;
 
-alter table public.message_templates enable row level security;
-create policy "auth all message_templates" on public.message_templates
-  for all to authenticated using (true) with check (true);
-
 -- Plantillas de ejemplo: edítalas o bórralas desde el dashboard (sección Plantillas)
 insert into public.message_templates (name, channel, subject, body, is_default) values
   ('Primer contacto: sin sitio web', 'whatsapp', null,
