@@ -1,6 +1,12 @@
 # Changelog
 
-Cada versión tiene su tag en git (`v0.1.0` … `v1.4.0`).
+Cada versión tiene su tag en git (`v0.1.0` … `v1.5.0`).
+
+## 1.5.0: Bot de Telegram en Cloudflare Workers
+- **Bot por webhook:** un Worker de Cloudflare (`wrangler.jsonc`, `apps/bot`) atiende los mensajes y botones de Telegram al instante, gratis y sin servidor encendido. Reutiliza `apps/worker/src/bot.ts`; sustituye `pg` por el driver HTTP de Neon mediante un `alias` (`apps/bot/src/shims/pg.ts`). `/setup?key=...` registra el webhook y el menú.
+- **Railway opcional:** el worker ya no hace polling de Telegram salvo `TELEGRAM_POLLING=1` (`getUpdates` quita el webhook). El job de GitHub Actions (cada 15 min) ahora también atiende "Ejecutar ahora", las auditorías de sitios y los avisos de cotizaciones, de forma idempotente, así que Railway puede apagarse.
+- **Refactor sin cambio de comportamiento:** `requestAudit` pasa a `audit/request.ts` y `normalizeWebsite` a `audit/url.ts` (sin Playwright ni `node:dns`); `bot.ts` exporta `handleUpdate` y `BOT_COMMANDS`.
+- **Compromiso:** sin Railway, auditorías, "Ejecutar ahora" y avisos de cotizaciones tardan hasta 15 min en lugar de ~20 s.
 
 ## 1.4.0: Seguridad y PWA
 - **Acceso:** migración `0013` con lista de usuarios autorizados (`app_users`). Antes, cualquiera que se registrara en Supabase habría leído y modificado todos los datos. Pantalla «Tu cuenta no tiene acceso» para cuentas no autorizadas. Ver `SECURITY.md`.

@@ -18,7 +18,8 @@ Guía de cómo está protegido Prospecta y qué debes mantener tú.
 
 | Secreto | Dónde vive | Nunca en |
 | --- | --- | --- |
-| `SUPABASE_SERVICE_ROLE_KEY`, `TELEGRAM_BOT_TOKEN`, `DENUE_TOKEN`, `REDIS_URL` | Variables del servicio `worker` en Railway y `apps/worker/.env` (local) | Git, Vercel, el navegador |
+| `SUPABASE_SERVICE_ROLE_KEY`, `TELEGRAM_BOT_TOKEN`, `DENUE_TOKEN`, `REDIS_URL` | Variables del servicio `worker` en Railway, secretos de GitHub Actions, secretos del Worker de Cloudflare y `apps/worker/.env` (local) | Git, Vercel, el navegador |
+| `WEBHOOK_SECRET` | Secreto del Worker de Cloudflare (*Runtime*) | Git, Vercel, Railway |
 | `APIFY_TOKEN` | Solo `apps/worker/.env` (local) | Railway, Vercel, Git |
 | `NEXT_PUBLIC_SUPABASE_*` (llave *publishable*) | Vercel y `apps/web/.env.local` | — (es pública por diseño: la protege RLS) |
 
@@ -36,6 +37,7 @@ Los archivos `.env*` están en `.gitignore`; solo se versionan las plantillas `.
 
 - La revisión de sitios web bloquea direcciones privadas o internas (SSRF) en la URL, en redirecciones y en cada recurso; respeta `robots.txt`; una sola página y bajo demanda.
 - El bot de Telegram solo atiende al chat de `TELEGRAM_CHAT_ID`.
+- El webhook del Worker de Cloudflare exige el encabezado secreto de Telegram (`WEBHOOK_SECRET`, comparado en tiempo constante); sin él responde 401 y no procesa nada. `/setup` también exige esa clave.
 - Redis solo es accesible por la red privada de Railway.
 
 ## Antes de dar por cerrado un cambio

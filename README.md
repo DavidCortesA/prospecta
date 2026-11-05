@@ -38,8 +38,14 @@ Bot de captación de clientes con dashboard.
   1. En el proyecto de Railway agrega un servicio Redis (base de datos) y otro servicio desde este repo con *Root Directory* = `apps/worker` (Railway detecta y usa el `Dockerfile`).
   2. Variables del worker: `REDIS_URL` (referencia `${{Redis.REDIS_URL}}`), `DATABASE_URL` (Neon, conexión directa), `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`, `USER_AGENT`.
   3. Comprueba que Redis use la política de memoria `noeviction` (requisito de BullMQ).
-  4. El worker de Railway atiende el bot de Telegram, las auditorías, las cotizaciones y el botón "Ejecutar ahora".
-- **Trabajos programados → GitHub Actions** (`.github/workflows/scheduled-jobs.yml`). Cada 15 minutos ejecuta las fuentes cuyo cron ya venció y el resumen diario (`DIGEST_CRON`). No necesita Redis. Secretos del repo (*Settings → Secrets and variables → Actions*): `DATABASE_URL` (Neon, conexión directa), `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`, `BUSINESS_NAME`, `DASHBOARD_URL` y `DENUE_TOKEN`. Si una fuente usa otra variable en su URL (`{{env.NOMBRE}}`), agrégala también al workflow. Los crons de las fuentes se interpretan en UTC; GitHub puede retrasar las corridas unos minutos.
+  4. **Es opcional.** Atiende "Ejecutar ahora", las auditorías de sitios y los avisos de cotizaciones cada 20 s. Sin Railway, esas tareas las hace GitHub Actions cada 15 min (ver abajo). Ya **no** atiende el bot de Telegram: eso lo hace Cloudflare.
+- **Bot de Telegram → Cloudflare Workers** (`wrangler.jsonc` + `apps/bot`). Responde al instante por webhook, gratis y sin servidor encendido. Reutiliza el bot de `apps/worker/src`; solo sustituye `pg` por el driver HTTP de Neon (`apps/bot/src/shims/pg.ts`).
+  1. En Cloudflare: *Workers & Pages → Create → Import a repository* y elige este repo. Nombre del Worker: `prospecta` (debe coincidir con `wrangler.jsonc`), *Root directory* = `/`, **Build command vacío** y *Deploy command* `npx wrangler deploy`.
+  2. En *Settings → Variables and Secrets* (la sección **Runtime**, no la de *Build*) agrega como **Secret**: `DATABASE_URL` (Neon, sirve la directa o la *pooled*), `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID` y `WEBHOOK_SECRET` (una cadena larga inventada por ti, solo `A-Z a-z 0-9 _ -`). Opcionales: `DASHBOARD_URL`, `BUSINESS_NAME`, `APP_TZ`. Pulsa *Deploy*.
+  3. Abre **una vez** en el navegador `https://prospecta.<tu-subdominio>.workers.dev/setup?key=<WEBHOOK_SECRET>`: registra el webhook y el menú de comandos. (`...&delete=1` lo quita.)
+  4. Si Railway sigue activo, **no** definas `TELEGRAM_POLLING=1` allí: `getUpdates` quita el webhook y el bot dejaría de responder. Cada petición se valida con el encabezado secreto de Telegram (sin él, 401).
+  5. Dos bots distintos no pueden compartir Worker ni token: cada uno necesita su propio Worker, secretos y base de datos.
+- **Trabajos programados → GitHub Actions** (`.github/workflows/scheduled-jobs.yml`). Cada 15 minutos ejecuta las fuentes cuyo cron ya venció, el resumen diario (`DIGEST_CRON`) y lo que antes hacía solo Railway: el botón "Ejecutar ahora", las auditorías de sitios (Chromium) y los avisos de cotizaciones. Es idempotente: con Railway activo, él lo atiende primero y aquí no queda nada. No necesita Redis. Secretos del repo (*Settings → Secrets and variables → Actions*): `DATABASE_URL` (Neon, conexión directa), `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`, `BUSINESS_NAME`, `DASHBOARD_URL` y `DENUE_TOKEN`. Si una fuente usa otra variable en su URL (`{{env.NOMBRE}}`), agrégala también al workflow. Los crons de las fuentes se interpretan en UTC; GitHub puede retrasar las corridas unos minutos.
 
 El Redis puede ser cualquier proveedor: el worker solo lee `REDIS_URL` (usa `rediss://` si es TLS).
 
@@ -120,7 +126,7 @@ En **Plantillas** guardas mensajes con variables (`{{empresa}}`, `{{nombre}}`, `
 En el detalle de cada cotización hay un **enlace para el cliente** (`/q/<token>`): ve el documento, lo puede imprimir y **aceptarlo** escribiendo su nombre. Sin iniciar sesión.
 
 - Seguridad: el token es largo e impredecible; el acceso anónimo **no lee las tablas**, solo ejecuta dos funciones de la base (`public_quote` y `accept_public_quote`) que exigen ese token y no devuelven ids internos. La página va con `noindex`.
-- Telegram te avisa cuando el cliente **abre** el enlace por primera vez y cuando **acepta**. Al aceptar, el prospecto pasa a Ganado y se crea el cliente y su proyecto (lo hace el worker en ~20 s).
+- Telegram te avisa cuando el cliente **abre** el enlace por primera vez y cuando **acepta**. Al aceptar, el prospecto pasa a Ganado y se crea el cliente y su proyecto (lo hace el worker de Railway en ~20 s, o GitHub Actions en un máximo de 15 min si no usas Railway).
 - Las vistas previas de WhatsApp/Telegram no cuentan como "abrió", y el botón *Vista previa* del dashboard tampoco.
 - Una cotización vencida (`Válida hasta`) o rechazada no se puede aceptar.
 

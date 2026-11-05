@@ -1,6 +1,6 @@
 import { config } from "./config.js";
 import { dayLabel } from "./dates.js";
-import { requestAudit, type RequestResult } from "./audit/runner.js";
+import { requestAudit, type RequestResult } from "./audit/request.js";
 import { sendEmailProposal, type ProposalResult } from "./proposal.js";
 import { sendDigest } from "./digest.js";
 import { escapeHtml, notify, tg } from "./telegram.js";
@@ -31,7 +31,7 @@ type TgMessage = {
   reply_to_message?: { message_id: number };
   reply_markup?: unknown;
 };
-type TgUpdate = {
+export type TgUpdate = {
   update_id: number;
   message?: TgMessage;
   callback_query?: { id: string; data?: string; message?: TgMessage };
@@ -61,7 +61,7 @@ const AUDIT_REPLY: Record<RequestResult, string> = {
   queued: "🔎 Revisando el sitio web… te aviso en un minuto.",
   already: "Ya hay una revisión de este sitio en curso.",
   no_website: "Este prospecto no tiene sitio web.",
-  unavailable: "Falta aplicar la migración 0011 en Supabase.",
+  unavailable: "Falta aplicar la migración 0011 (npm run db:migrate).",
 };
 
 const PROPOSAL_REPLY: Record<ProposalResult, string> = {
@@ -70,6 +70,15 @@ const PROPOSAL_REPLY: Record<ProposalResult, string> = {
   no_template: "No hay una plantilla de correo activa. Crea una en Plantillas del dashboard.",
   not_found: "No encontré ese prospecto.",
 };
+
+/** Menú de comandos de Telegram (lo registran startTelegramBot y /setup del Worker). */
+export const BOT_COMMANDS = [
+  { command: "seguimientos", description: "Seguimientos de hoy y vencidos" },
+  { command: "pendientes", description: "Prospectos nuevos por contactar" },
+  { command: "buscar", description: "Buscar un prospecto por nombre" },
+  { command: "resumen", description: "Conteo por estado" },
+  { command: "ayuda", description: "Cómo usar el bot" },
+];
 
 const authorized = (chatId: number) => String(chatId) === String(config.telegramChatId);
 
@@ -85,15 +94,7 @@ export function startTelegramBot(): () => void {
   (async () => {
     // getUpdates no funciona si el bot tiene un webhook; se quita por si acaso.
     await tg("deleteWebhook", { drop_pending_updates: false });
-    await tg("setMyCommands", {
-      commands: [
-        { command: "seguimientos", description: "Seguimientos de hoy y vencidos" },
-        { command: "pendientes", description: "Prospectos nuevos por contactar" },
-        { command: "buscar", description: "Buscar un prospecto por nombre" },
-        { command: "resumen", description: "Conteo por estado" },
-        { command: "ayuda", description: "Cómo usar el bot" },
-      ],
-    });
+    await tg("setMyCommands", { commands: BOT_COMMANDS });
 
     let offset = 0;
     while (!stopped) {
@@ -110,7 +111,7 @@ export function startTelegramBot(): () => void {
       for (const u of updates) {
         offset = u.update_id + 1;
         try {
-          await handle(u);
+          await handleUpdate(u);
         } catch (err) {
           console.error("Error atendiendo update de Telegram:", (err as Error).message);
         }
@@ -124,7 +125,8 @@ export function startTelegramBot(): () => void {
   };
 }
 
-async function handle(u: TgUpdate) {
+/** Atiende una actualización de Telegram (la usan el polling y el webhook del Worker). */
+export async function handleUpdate(u: TgUpdate) {
   if (u.callback_query) return handleCallback(u.callback_query);
   if (u.message?.text) return handleText(u.message);
 }

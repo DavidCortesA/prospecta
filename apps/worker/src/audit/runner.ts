@@ -3,34 +3,11 @@ import { query } from "../db.js";
 import { getLead } from "../leads.js";
 import { escapeHtml, notify, type Keyboard } from "../telegram.js";
 import { AuditError, auditSite, type Issue } from "./site.js";
-import { normalizeWebsite } from "./ssrf.js";
 
 const AUDIT_TIMEOUT_MS = 75_000;
 const STALE_RUNNING_MS = 10 * 60 * 1000;
 
 let busy = false;
-
-export type RequestResult = "queued" | "already" | "no_website" | "unavailable";
-
-/** Encola la revisión del sitio de un prospecto (si no hay ya una en curso). */
-export async function requestAudit(leadId: string): Promise<RequestResult> {
-  const lead = await query<{ website: string | null }>("SELECT website FROM leads WHERE id = $1", [leadId]).then((r) => r.rows[0], () => undefined);
-  const url = normalizeWebsite(lead?.website as string | null | undefined);
-  if (!url) return "no_website";
-
-  let open: { id: string }[];
-  try {
-    ({ rows: open } = await query<{ id: string }>("SELECT id FROM site_audits WHERE lead_id = $1 AND status IN ('pending', 'running') LIMIT 1", [leadId]));
-  } catch {
-    return "unavailable"; // falta la migración 0011
-  }
-  if (open.length) return "already";
-
-  return query("INSERT INTO site_audits (lead_id, url) VALUES ($1, $2)", [leadId, url]).then(
-    () => "queued" as const,
-    () => "unavailable" as const
-  );
-}
 
 const withTimeout = <T>(p: Promise<T>, ms: number) =>
   Promise.race([p, new Promise<never>((_, reject) => setTimeout(() => reject(new AuditError("La revisión tardó demasiado y se canceló")), ms))]);

@@ -15,8 +15,10 @@ const pollTimer = setInterval(() => {
   pollQuoteEvents().catch(console.error);
   pollSiteAudits().catch(console.error);
 }, POLL_EVERY_MS);
-const stopBot = startTelegramBot();
-await notify("✅ Prospecta worker iniciado. Escribe /ayuda para ver cómo marcar prospectos desde aquí.");
+// El bot normalmente corre en el Worker de Cloudflare por webhook (apps/bot). El polling es opcional
+// (desarrollo local o sin Cloudflare): getUpdates quita el webhook, así que NO lo actives con el Worker en uso.
+const stopBot = process.env.TELEGRAM_POLLING === "1" ? startTelegramBot() : () => {};
+await notify("✅ Prospecta worker iniciado.");
 console.log("Prospecta worker listo");
 
 async function shutdown() {

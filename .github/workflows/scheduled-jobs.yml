@@ -1,7 +1,8 @@
 name: Trabajos programados
 
-# Ejecuta cada 15 minutos las fuentes cuyo cron ya venció y el resumen diario de Telegram.
-# El bot, las auditorías y "Ejecutar ahora" siguen en el worker de Railway.
+# Ejecuta cada 15 minutos las fuentes cuyo cron ya venció y el resumen diario de Telegram, y atiende
+# "Ejecutar ahora", las auditorías de sitios y los avisos de cotizaciones (Railway ya es opcional).
+# El bot de Telegram vive en el Worker de Cloudflare (wrangler.jsonc).
 on:
   schedule:
     - cron: "*/15 * * * *"

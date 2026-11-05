@@ -1,6 +1,17 @@
 {
+  "private": true,
+  "scripts": {
+    "deploy:bot": "wrangler deploy",
+    "typecheck:bot": "tsc -p apps/bot --noEmit"
+  },
   "dependencies": {
     "@neon/config": "^1.10.1",
-    "@neon/env": "^1.6.9"
+    "@neon/env": "^1.6.9",
+    "@neondatabase/serverless": "^1.2.0"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.6",
+    "typescript": "^7.0.2",
+    "wrangler": "^4.158.0"
   }
 }
