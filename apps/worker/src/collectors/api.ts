@@ -38,7 +38,14 @@ export async function collectApi(source: Source): Promise<CollectResult> {
 
   const body = await readJson(res);
   const items = get(body, source.config.itemsPath as string | undefined);
-  if (!Array.isArray(items)) throw new Error("La respuesta no es un arreglo (revisa itemsPath)");
+  // DENUE responde 200 con el texto "No hay resultados." (no con un arreglo vacío) cuando no hay datos: en una
+  // página siguiente significa que se terminó la lista (se reinicia el cursor); en la primera, que no hay nada que traer.
+  if (typeof items === "string" && /no hay resultados/i.test(items)) {
+    return { leads: [], nextConfig: paginated ? { cursor: 0 } : undefined };
+  }
+  if (!Array.isArray(items)) {
+    throw new Error(`La respuesta no es un arreglo (revisa itemsPath). Recibí: ${JSON.stringify(body).slice(0, 120)}`);
+  }
 
   const map = (source.config.map ?? {}) as Record<string, string>;
   const filter = (source.config.filter ?? {}) as { requireAny?: string[]; missing?: string[] };

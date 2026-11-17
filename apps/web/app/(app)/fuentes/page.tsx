@@ -132,8 +132,8 @@ async function Sources({ searchParams }: { searchParams: PageProps<"/fuentes">["
             </select>
           </label>
           <label className="space-y-1.5">
-            <span className="text-xs font-semibold text-muted-foreground">Palabra clave (solo si eliges «Otro»)</span>
-            <input name="keyword" placeholder="taller eléctrico, lavandería…" className={inputCls} />
+            <span className="text-xs font-semibold text-muted-foreground">Palabra clave o código SCIAN de 6 dígitos (solo si eliges «Otro»)</span>
+            <input name="keyword" placeholder="lavandería, 238222…" className={inputCls} />
           </label>
           <label className="space-y-1.5">
             <span className="text-xs font-semibold text-muted-foreground">Municipio</span>

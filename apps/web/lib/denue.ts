@@ -44,6 +44,14 @@ export const DENUE_GIROS: { code: string; label: string }[] = [
   { code: "461110", label: "Tiendas de abarrotes" },
   { code: "611111", label: "Escuelas de preescolar privadas" },
   { code: "721111", label: "Hoteles" },
+  // Industria y servicios a empresas
+  { code: "811312", label: "Mantenimiento de maquinaria industrial" },
+  { code: "332710", label: "Maquinado de piezas metálicas" },
+  { code: "332310", label: "Estructuras metálicas (fabricación)" },
+  { code: "238210", label: "Instalaciones eléctricas" },
+  { code: "238222", label: "Aire acondicionado y calefacción (instalación)" },
+  { code: "561710", label: "Control y exterminación de plagas" },
+  { code: "561610", label: "Seguridad privada y custodia" },
 ];
 
 export const CRON_PRESETS: { value: string; label: string }[] = [
@@ -56,7 +64,7 @@ export const CRON_PRESETS: { value: string; label: string }[] = [
 export type DenueInput = {
   /** código SCIAN de DENUE_GIROS, o vacío si se usa palabra clave */
   giro?: string;
-  /** palabra(s) clave en el nombre del negocio, si no se elige giro */
+  /** palabra(s) clave en el nombre del negocio, si no se elige giro. Un código de 6 dígitos se toma como clase SCIAN. */
   keyword?: string;
   /** clave de municipio de DENUE_MUNICIPIOS; vacío = todo Nuevo León */
   municipio?: string;
@@ -74,12 +82,16 @@ export function buildDenueSource(input: DenueInput) {
   const keyword = (input.keyword ?? "").trim().replace(/[^\p{L}\p{N}\s]/gu, " ").replace(/\s+/g, " ").trim();
   if (!giro && !keyword) throw new Error("Elige un giro o escribe una palabra clave");
 
+  // Un código de 6 dígitos (p. ej. 238222) es una CLASE de actividad SCIAN, no texto del nombre: si se mandara como
+  // palabra clave INEGI respondería "No hay resultados." porque ningún negocio se llama así.
+  const code = !giro && /^\d{6}$/.test(keyword) ? keyword : "";
+
   const municipio = input.municipio && DENUE_MUNICIPIOS[input.municipio] ? input.municipio : "";
   // INEGI responde 404 si se pide una clase de actividad en todo el estado: con giro hace falta un municipio.
-  if (giro && !municipio) throw new Error("Para un giro elige un municipio (INEGI no permite buscar un giro en todo Nuevo León). Para todo el estado usa una palabra clave.");
-  const clase = giro ? giro.code : "0";
+  if ((giro || code) && !municipio) throw new Error("Para un giro o un código de clase elige un municipio (INEGI no permite buscarlos en todo Nuevo León). Para todo el estado usa una palabra clave.");
+  const clase = giro ? giro.code : code || "0";
   // En DENUE varias palabras van separadas por comas; "0" significa "sin filtro"
-  const nombre = !giro && keyword ? encodeURIComponent(keyword).replace(/%20/g, ",") : "0";
+  const nombre = !giro && !code && keyword ? encodeURIComponent(keyword).replace(/%20/g, ",") : "0";
 
   const url =
     `${BASE}/BuscarAreaAct/${DENUE_ENTIDAD_NL}/${municipio || "0"}/0/0/0/0/0/0/${clase}/${nombre}` +
@@ -107,6 +119,7 @@ export function buildDenueSource(input: DenueInput) {
     },
   };
 
-  const name = `DENUE · ${giro ? giro.label : keyword} · ${municipio ? DENUE_MUNICIPIOS[municipio] : "Nuevo León"}`;
+  const label = giro ? giro.label : code ? (DENUE_GIROS.find((g) => g.code === code)?.label ?? `Clase ${code}`) : keyword;
+  const name = `DENUE · ${label} · ${municipio ? DENUE_MUNICIPIOS[municipio] : "Nuevo León"}`;
   return { name, url, config, cron: input.cron };
 }
