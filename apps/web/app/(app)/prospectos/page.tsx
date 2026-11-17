@@ -3,8 +3,10 @@ import Link from "next/link";
 import { AlarmClock, Plus, Search } from "lucide-react";
 import { dbRow, dbRows } from "@/lib/db";
 import { LEAD_STATUSES, STATUS_LABEL, type LeadStatus } from "@/lib/constants";
-import { dateShort, dayLabel, followupState, timeAgo, todayKey } from "@/lib/format";
-import { Card, EmptyState, LinkButton, MigrationNotice, PageHeader, StatusBadge, TableShell, btn, inputCls, isMissingColumn } from "@/components/ui-kit";
+import { todayKey } from "@/lib/format";
+import { DEFAULT_SORT, orderBySql, parseSort } from "@/lib/lead-sort";
+import { Card, EmptyState, LinkButton, MigrationNotice, PageHeader, btn, inputCls, isMissingColumn } from "@/components/ui-kit";
+import { LeadsTable, type LeadRow } from "./leads-table";
 import { cn } from "@/lib/utils";
 
 export const metadata = { title: "Prospectos" };
@@ -36,6 +38,7 @@ async function List({ searchParams }: { searchParams: PageProps<"/prospectos">["
   const status = typeof sp.status === "string" && (LEAD_STATUSES as readonly string[]).includes(sp.status) ? sp.status : "";
   const page = Math.max(1, Number(typeof sp.page === "string" ? sp.page : 1) || 1);
   const due = sp.due === "1";
+  const { key: sortKey, dir: sortDir } = parseSort(sp.sort, sp.dir);
   const today = todayKey();
 
   // Filtros con valores enlazados ($n); las columnas son fijas
@@ -60,7 +63,7 @@ async function List({ searchParams }: { searchParams: PageProps<"/prospectos">["
 
   const [{ data: leads, error: listError }, { data: countRow }, { data: all }, { data: dueRow }] = await Promise.all([
     dbRows(
-      `select id, name, company, email, phone, city, status, score, deal_value, next_followup, created_at, (select json_build_object('name', s.name) from sources s where s.id = leads.source_id) as sources from leads ${whereSql} order by created_at desc limit $${limit} offset $${limit + 1}`,
+      `select id, name, company, email, phone, city, status, score, deal_value, next_followup, created_at, (select json_build_object('name', s.name) from sources s where s.id = leads.source_id) as sources from leads ${whereSql} ${orderBySql(sortKey, sortDir)} limit $${limit} offset $${limit + 1}`,
       [...values, PAGE_SIZE, (page - 1) * PAGE_SIZE]
     ),
     dbRow<{ n: number }>(`select count(*)::int as n from leads ${whereSql}`, values),
@@ -79,7 +82,8 @@ async function List({ searchParams }: { searchParams: PageProps<"/prospectos">["
 
   const href = (patch: Record<string, string | number>) => {
     const p = new URLSearchParams();
-    const merged = { q, status, due: due ? "1" : "", page: 1, ...patch };
+    const isDefaultSort = sortKey === DEFAULT_SORT.key && sortDir === DEFAULT_SORT.dir;
+    const merged = { q, status, due: due ? "1" : "", ...(isDefaultSort ? {} : { sort: sortKey, dir: sortDir }), page: 1, ...patch };
     for (const [k, v] of Object.entries(merged)) if (v !== "" && !(k === "page" && v === 1)) p.set(k, String(v));
     const s = p.toString();
     return s ? `/prospectos?${s}` : "/prospectos";
@@ -105,61 +109,18 @@ async function List({ searchParams }: { searchParams: PageProps<"/prospectos">["
         <Search className="pointer-events-none absolute left-3 top-2.5 size-4 text-muted-foreground" />
         <input name="q" defaultValue={q} placeholder="Buscar por nombre, empresa, correo o teléfono" className={cn(inputCls, "pl-9")} />
         {status && <input type="hidden" name="status" value={status} />}
+        {due && <input type="hidden" name="due" value="1" />}
+        {(sortKey !== DEFAULT_SORT.key || sortDir !== DEFAULT_SORT.dir) && (
+          <>
+            <input type="hidden" name="sort" value={sortKey} />
+            <input type="hidden" name="dir" value={sortDir} />
+          </>
+        )}
       </form>
 
       <Card>
         {leads?.length ? (
-          <TableShell>
-            <table className="w-full text-left text-sm">
-              <thead className="border-b text-xs uppercase tracking-wider text-muted-foreground">
-                <tr>
-                  <th className="px-5 py-3 font-semibold">Prospecto</th>
-                  <th className="px-3 py-3 font-semibold">Contacto</th>
-                  <th className="hidden px-3 py-3 font-semibold md:table-cell">Fuente</th>
-                  <th className="px-3 py-3 font-semibold">Estado</th>
-                  <th className="hidden px-3 py-3 font-semibold sm:table-cell">Score</th>
-                  <th className="hidden px-3 py-3 font-semibold md:table-cell">Seguimiento</th>
-                  <th className="hidden px-3 py-3 font-semibold lg:table-cell">Creado</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y">
-                {leads.map((l) => (
-                  <tr key={l.id} className="transition hover:bg-secondary/50">
-                    <td className="px-5 py-3">
-                      <Link href={`/prospectos/${l.id}`} className="font-semibold hover:text-primary">
-                        {l.name}
-                      </Link>
-                      <p className="text-xs text-muted-foreground">{l.company ?? "Sin empresa"}{l.city ? ` · ${l.city}` : ""}</p>
-                    </td>
-                    <td className="px-3 py-3">
-                      <p>{l.email ?? "—"}</p>
-                      <p className="text-xs text-muted-foreground">{l.phone ?? ""}</p>
-                    </td>
-                    <td className="hidden px-3 py-3 text-muted-foreground md:table-cell">
-                      {(l.sources as { name?: string } | null)?.name ?? "Manual"}
-                    </td>
-                    <td className="px-3 py-3">
-                      <StatusBadge status={l.status} />
-                    </td>
-                    <td className="hidden px-3 py-3 font-semibold sm:table-cell">{l.score}</td>
-                    <td className="hidden px-3 py-3 md:table-cell">
-                      {l.next_followup ? (
-                        <span className={followupState(l.next_followup, today) === "overdue" ? "font-semibold text-rose-600" : followupState(l.next_followup, today) === "today" ? "font-semibold text-amber-600" : "text-muted-foreground"}>
-                          {followupState(l.next_followup, today) === "overdue" ? "Vencido · " : ""}
-                          {dayLabel(l.next_followup)}
-                        </span>
-                      ) : (
-                        <span className="text-muted-foreground">—</span>
-                      )}
-                    </td>
-                    <td className="hidden px-3 py-3 text-muted-foreground lg:table-cell" title={dateShort(l.created_at)}>
-                      {timeAgo(l.created_at)}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </TableShell>
+          <LeadsTable leads={leads as LeadRow[]} sort={sortKey} dir={sortDir} today={today} hrefFor={href} />
         ) : (
           <EmptyState
             title={q || status ? "Sin resultados" : "Aún no hay prospectos"}

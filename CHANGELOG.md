@@ -1,6 +1,16 @@
 # Changelog
 
-Cada versión tiene su tag en git (`v0.1.0` … `v1.5.0`).
+Cada versión tiene su tag en git (`v0.1.0` … `v1.6.0`).
+
+## 1.6.0: Tabla de prospectos ordenable y cambio de estado desde la lista
+- **Encabezados ordenables** en Prospectos: Prospecto (A→Z / Z→A), Fuente, Estado (por etapa del embudo), Score (mayor a menor), Seguimiento (más próximo primero) y Creado. Un clic ordena y otro invierte; la flecha marca el orden activo y se conserva al filtrar, buscar y paginar. El orden se hace en la base de datos (no solo en la página visible) y con lista blanca, así que nada de la URL entra al SQL. Nombres con acento ("Óptica") se ordenan junto a su letra.
+- **Cambiar el estado desde la tabla** con un selector por fila (ganar crea el cliente y su proyecto, igual que en la ficha). Si falla, se revierte y avisa.
+
+## 1.5.1: Fuentes DENUE con código SCIAN y parche de Next.js
+- **Corrección:** los códigos de giro (p. ej. `238222`) capturados como *palabra clave* iban al campo «nombre» de la consulta; INEGI respondía el texto `"No hay resultados."` y el colector fallaba con «La respuesta no es un arreglo» (un aviso de Telegram por fuente en cada corrida). Ahora el asistente toma un código de 6 dígitos como **clase SCIAN** (exige municipio) y el catálogo suma 7 giros industriales.
+- El colector trata `"No hay resultados."` como página vacía (al final de la lista reinicia el cursor) y, si la respuesta no es un arreglo, muestra qué recibió.
+- Migración `0015` (`db/migrations`): corrige las fuentes ya creadas así y les pone nombre legible. Idempotente.
+- **Next.js 16.4.6** (GHSA-mfr8-8qww-v76h y GHSA-vc7v-qv4w-wrv8); `npm audit` en 0.
 
 ## 1.5.0: Bot de Telegram en Cloudflare Workers
 - **Bot por webhook:** un Worker de Cloudflare (`wrangler.jsonc`, `apps/bot`) atiende los mensajes y botones de Telegram al instante, gratis y sin servidor encendido. Reutiliza `apps/worker/src/bot.ts`; sustituye `pg` por el driver HTTP de Neon mediante un `alias` (`apps/bot/src/shims/pg.ts`). `/setup?key=...` registra el webhook y el menú.

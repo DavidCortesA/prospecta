@@ -54,7 +54,7 @@ El Redis puede ser cualquier proveedor: el worker solo lee `REDIS_URL` (usa `red
 | Sección | Para qué sirve |
 | --- | --- |
 | Resumen | Saludo con lo que hay que atender, métricas, embudo, prospectos por día, mejores fuentes y actividad del bot |
-| Prospectos | Lista con búsqueda y filtros, alta manual, detalle con bitácora y notas |
+| Prospectos | Lista con búsqueda, filtros y **encabezados ordenables** (A→Z, mayor a menor…), **cambio de estado desde la misma tabla**, alta manual, detalle con bitácora y notas |
 | Pipeline | Kanban con arrastrar y soltar entre etapas |
 | Cierres | Qué se concretó y qué no, tasa de cierre, valor ganado y motivos de pérdida |
 | Cotizaciones | Cotizador: eliges las features que pidió el cliente y se calcula el total; imprime/PDF o copia el resumen |
@@ -192,4 +192,4 @@ El colector web con Playwright solo corre si la fuente tiene `scraping_allowed =
 
 ## Versiones
 
-Se usan tags semánticos: `v0.1.0` base web + auth · `v0.2.0` esquema DB + Redis · `v0.3.0` worker · `v0.4.0` dashboard · `v0.5.0` despliegue (Dockerfile del worker + Railway/Vercel) · `v0.6.0` diseño, PWA y resumen · `v0.7.0` prospectos, pipeline y fuentes · `v0.8.0` clientes, proyectos y cierres · `v0.9.0` catálogo y cotizaciones · `v0.10.0` fuente DENUE (paginación, filtros, score y avisos agrupados) · `v0.11.0` control de prospectos desde Telegram · `v0.12.0` seguimientos y resumen diario · `v0.13.0` plantillas de WhatsApp y correo · `v0.14.0` cotización pública con aceptar · `v0.15.0` asistente DENUE · `v0.16.0` mapa, ubicación y rutas · `v0.17.0` revisión del sitio web · **`v1.0.0`** primera versión estable · `v1.1.0` íconos Lucide y moneda MXN · `v1.2.0` propuesta por correo en Telegram · `v1.2.1` corrección del asistente DENUE · `v1.3.0` importar de Google Maps · `v1.4.0` seguridad y PWA (ver [CHANGELOG](CHANGELOG.md)).
+Se usan tags semánticos: `v0.1.0` base web + auth · `v0.2.0` esquema DB + Redis · `v0.3.0` worker · `v0.4.0` dashboard · `v0.5.0` despliegue (Dockerfile del worker + Railway/Vercel) · `v0.6.0` diseño, PWA y resumen · `v0.7.0` prospectos, pipeline y fuentes · `v0.8.0` clientes, proyectos y cierres · `v0.9.0` catálogo y cotizaciones · `v0.10.0` fuente DENUE (paginación, filtros, score y avisos agrupados) · `v0.11.0` control de prospectos desde Telegram · `v0.12.0` seguimientos y resumen diario · `v0.13.0` plantillas de WhatsApp y correo · `v0.14.0` cotización pública con aceptar · `v0.15.0` asistente DENUE · `v0.16.0` mapa, ubicación y rutas · `v0.17.0` revisión del sitio web · **`v1.0.0`** primera versión estable · `v1.1.0` íconos Lucide y moneda MXN · `v1.2.0` propuesta por correo en Telegram · `v1.2.1` corrección del asistente DENUE · `v1.3.0` importar de Google Maps · `v1.4.0` seguridad y PWA · `v1.5.0` Neon y bot en Cloudflare · `v1.5.1` fuentes DENUE con código SCIAN · `v1.6.0` tabla de prospectos ordenable (ver [CHANGELOG](CHANGELOG.md)).
