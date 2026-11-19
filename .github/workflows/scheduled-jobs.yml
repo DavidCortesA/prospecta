@@ -28,6 +28,13 @@ jobs:
       DASHBOARD_URL: ${{ secrets.DASHBOARD_URL }}
       # Tokens que usan las URLs de las fuentes ({{env.NOMBRE}}): agrega aquí cada uno que necesites
       DENUE_TOKEN: ${{ secrets.DENUE_TOKEN }}
+      # Primer mensaje automático de WhatsApp (Kapso). Apagado mientras WHATSAPP_OUTREACH no sea "on".
+      # Los secretos que no existan llegan vacíos y se usan los valores por defecto.
+      WHATSAPP_OUTREACH: ${{ secrets.WHATSAPP_OUTREACH }}
+      KAPSO_API_KEY: ${{ secrets.KAPSO_API_KEY }}
+      KAPSO_PHONE_NUMBER_ID: ${{ secrets.KAPSO_PHONE_NUMBER_ID }}
+      WHATSAPP_TEMPLATE_NAME: ${{ secrets.WHATSAPP_TEMPLATE_NAME }}
+      WHATSAPP_DAILY_LIMIT: ${{ secrets.WHATSAPP_DAILY_LIMIT }}
     steps:
       - uses: actions/checkout@v4
 

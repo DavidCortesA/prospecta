@@ -53,15 +53,3 @@ export function parseInbound(body: unknown): InboundMessage[] {
   return out;
 }
 
-/** Envía un texto por la API de Kapso. Solo funciona dentro de la ventana de 24 h del cliente. */
-export async function sendText(phoneNumberId: string, to: string, text: string): Promise<void> {
-  const apiKey = process.env.KAPSO_API_KEY;
-  if (!apiKey) throw new Error("Falta KAPSO_API_KEY");
-  const res = await fetch(`https://api.kapso.ai/meta/whatsapp/v24.0/${encodeURIComponent(phoneNumberId)}/messages`, {
-    method: "POST",
-    headers: { "X-API-Key": apiKey, "Content-Type": "application/json" },
-    body: JSON.stringify({ messaging_product: "whatsapp", to, type: "text", text: { body: text } }),
-    signal: AbortSignal.timeout(15_000),
-  });
-  if (!res.ok) throw new Error(`Kapso respondió ${res.status}: ${(await res.text()).slice(0, 300)}`);
-}

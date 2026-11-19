@@ -5,7 +5,8 @@ import { parseInbound, verifySignature } from "@/lib/whatsapp/kapso";
 /**
  * Webhook de Kapso (evento whatsapp.message.received). Es público, así que TODO se valida con la firma:
  * sin KAPSO_WEBHOOK_SECRET configurado o con firma inválida responde 401 y no toca la base de datos.
- * Responde 200 enseguida (Kapso exige < 10 s) y la respuesta con IA se procesa después.
+ * No contesta nada: solo registra lo que responden los prospectos y te avisa por Telegram. Responde 200 enseguida
+ * (Kapso exige < 10 s) y el registro se procesa después.
  */
 export async function POST(request: Request) {
   const secret = process.env.KAPSO_WEBHOOK_SECRET;

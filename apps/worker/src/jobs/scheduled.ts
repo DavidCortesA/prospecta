@@ -9,6 +9,8 @@ import { runSource } from "../collect.js";
 import { sendDigest } from "../digest.js";
 import { pollQuoteEvents } from "../quotes.js";
 import { pollSiteAudits } from "../audit/runner.js";
+import { notify, escapeHtml } from "../telegram.js";
+import { kapsoSender, runOutreach, type OutreachDeps } from "../whatsapp/outreach.js";
 
 /** Última hora programada (anterior a `now`) de una expresión cron. */
 function lastTick(expression: string, tz: string, now: Date): Date {
@@ -89,6 +91,27 @@ async function runDigest(now: Date) {
   await sendDigest();
 }
 
+/** Primer mensaje de WhatsApp a prospectos nuevos (apagado salvo WHATSAPP_OUTREACH=on). */
+async function runWhatsappOutreach(now: Date) {
+  const w = config.whatsapp;
+  if (!w.enabled) return;
+  if (!w.apiKey || !w.phoneNumberId || !w.templateName) {
+    throw new Error("WhatsApp activado pero faltan KAPSO_API_KEY, KAPSO_PHONE_NUMBER_ID o WHATSAPP_TEMPLATE_NAME");
+  }
+  const result = await runOutreach(
+    {
+      query: ((text: string, values?: unknown[]) => query(text, values)) as OutreachDeps["query"],
+      send: kapsoSender(w.apiKey, w.phoneNumberId, w.templateName, w.templateLang),
+      notify: (text) => notify(text),
+      sleep: (ms) => new Promise((r) => setTimeout(r, ms)),
+      escape: escapeHtml,
+    },
+    { ...w, timezone: config.timezone },
+    now
+  );
+  console.log(`WhatsApp: ${result.sent} enviados, ${result.failed} fallidos${result.skipped ? ` (${result.skipped})` : ""}`);
+}
+
 const now = new Date();
 await runRequestedSources();
 await runDueSources(now);
@@ -102,6 +125,10 @@ await pollQuoteEvents().catch((err) => {
 });
 await drainSiteAudits().catch((err) => {
   console.error("Auditorías de sitios fallaron:", err instanceof Error ? err.message : err);
+  process.exitCode = 1;
+});
+await runWhatsappOutreach(now).catch((err) => {
+  console.error("Envío de WhatsApp falló:", err instanceof Error ? err.message : err);
   process.exitCode = 1;
 });
 await pool.end();

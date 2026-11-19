@@ -104,17 +104,20 @@ Sin responder a un aviso, escribe la palabra y el nombre: `contactado Pérez`. C
 
 El bot solo atiende al chat configurado en `TELEGRAM_CHAT_ID`. Variable opcional del worker: `DASHBOARD_URL` (agrega el botón "Abrir en el dashboard").
 
-## Agente de WhatsApp (Kapso + Claude)
+## WhatsApp automático de primer contacto (Kapso)
 
-El webhook `/api/whatsapp/webhook` de la web recibe los mensajes de WhatsApp que entrega [Kapso](https://kapso.ai), los guarda en Neon y responde con Claude. Atiende dudas frecuentes, recoge solicitudes de llamada (te avisa por Telegram) y comparte la cotización del prospecto; si piden precio cerrado o descuento, hay una queja, piden a una persona o no sabe responder, **pasa la conversación a una persona** y deja de contestarle.
+El sistema **solo inicia** la conversación: a los prospectos nuevos con teléfono les manda una plantilla de WhatsApp (sin IA). Cuando alguien responde, el prospecto pasa a **Respondió**, te llega un aviso por Telegram con su mensaje y un enlace para contestarle, y sigues tú.
 
-Puesta en marcha (las llaves van en las variables de entorno de Vercel, nunca en el chat ni en git):
+**Importante antes de empezar**
+- WhatsApp solo permite escribir primero con una **plantilla aprobada por Meta** (categoría *Marketing*; la revisión tarda de minutos a horas). El número **Sandbox** de Kapso no envía plantillas: para enviar de verdad necesitas un **número propio** conectado (`kapso setup`) y una cuenta de Meta Business verificada.
+- Meta exige que el destinatario haya aceptado recibir mensajes y que haya una forma sencilla de darse de baja (por eso la plantilla pide responder BAJA). Si muchos reportan o bloquean, bajan la calidad y el límite del número, y pueden suspenderlo. Por eso el envío es gradual (20 al día por defecto) y está **apagado** hasta que lo actives.
+- Muchos teléfonos de DENUE son fijos y no tienen WhatsApp: esos fallan solos y quedan registrados, sin detener el envío.
 
-1. Aplica las migraciones: `npm run db:migrate` en `apps/web`.
-2. En Vercel agrega `KAPSO_WEBHOOK_SECRET`, `KAPSO_API_KEY`, `ANTHROPIC_API_KEY`, `WHATSAPP_TEST_NUMBERS` (tu número, solo dígitos), `DASHBOARD_URL` y `TELEGRAM_BOT_TOKEN`/`TELEGRAM_CHAT_ID`, y despliega.
-3. Registra el webhook (con el mismo secreto): `kapso whatsapp webhooks new --phone-number-id <id> --url https://TU-DOMINIO/api/whatsapp/webhook --event whatsapp.message.received --buffer-enabled --active`.
-4. Prueba con el número **Sandbox** de Kapso y tu propio teléfono. Solo contesta a los números de `WHATSAPP_TEST_NUMBERS`.
-5. Para clientes reales, pon `WHATSAPP_AUTOREPLY=all` (hazlo solo cuando estés conforme con las respuestas).
+Puesta en marcha (las llaves van en secretos de GitHub y variables de Vercel, nunca en el chat ni en git):
+1. `npm run db:migrate` en `apps/web` (migraciones 0016 y 0017).
+2. Crea la plantilla con `kapso whatsapp templates new --phone-number-id <id> --input plantilla.json` y espera su aprobación. Ejemplo de cuerpo con dos variables: *«Hola, buen día. Soy de {{1}}. Vi que {{2}} aún no cuenta con página web. Nos dedicamos a crear sitios y sistemas para negocios como el suyo. ¿Le gustaría que le comparta una propuesta sin compromiso? Si prefiere no recibir mensajes, responda BAJA.»* (`{{1}}` = `empresa`, `{{2}}` = `negocio` con `WHATSAPP_TEMPLATE_VARS`; ajústalo al orden que uses).
+3. **Respuestas:** en Vercel agrega `KAPSO_WEBHOOK_SECRET` (una cadena larga inventada por ti), `DASHBOARD_URL`, `TELEGRAM_BOT_TOKEN` y `TELEGRAM_CHAT_ID`; después de desplegar registra el webhook con el mismo secreto: `kapso whatsapp webhooks new --phone-number-id <id> --url https://TU-DOMINIO/api/whatsapp/webhook --event whatsapp.message.received --buffer-enabled --active`.
+4. **Envío:** en *GitHub → Settings → Secrets* agrega `KAPSO_API_KEY`, `KAPSO_PHONE_NUMBER_ID` y `WHATSAPP_TEMPLATE_NAME`. Opcional: `WHATSAPP_DAILY_LIMIT`. **Al final**, cuando estés conforme, crea el secreto `WHATSAPP_OUTREACH` con el valor `on` (para pausarlo, bórralo o cámbialo).
 
 ## Seguimientos y resumen diario
 
