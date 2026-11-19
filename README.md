@@ -104,6 +104,18 @@ Sin responder a un aviso, escribe la palabra y el nombre: `contactado Pérez`. C
 
 El bot solo atiende al chat configurado en `TELEGRAM_CHAT_ID`. Variable opcional del worker: `DASHBOARD_URL` (agrega el botón "Abrir en el dashboard").
 
+## Agente de WhatsApp (Kapso + Claude)
+
+El webhook `/api/whatsapp/webhook` de la web recibe los mensajes de WhatsApp que entrega [Kapso](https://kapso.ai), los guarda en Neon y responde con Claude. Atiende dudas frecuentes, recoge solicitudes de llamada (te avisa por Telegram) y comparte la cotización del prospecto; si piden precio cerrado o descuento, hay una queja, piden a una persona o no sabe responder, **pasa la conversación a una persona** y deja de contestarle.
+
+Puesta en marcha (las llaves van en las variables de entorno de Vercel, nunca en el chat ni en git):
+
+1. Aplica las migraciones: `npm run db:migrate` en `apps/web`.
+2. En Vercel agrega `KAPSO_WEBHOOK_SECRET`, `KAPSO_API_KEY`, `ANTHROPIC_API_KEY`, `WHATSAPP_TEST_NUMBERS` (tu número, solo dígitos), `DASHBOARD_URL` y `TELEGRAM_BOT_TOKEN`/`TELEGRAM_CHAT_ID`, y despliega.
+3. Registra el webhook (con el mismo secreto): `kapso whatsapp webhooks new --phone-number-id <id> --url https://TU-DOMINIO/api/whatsapp/webhook --event whatsapp.message.received --buffer-enabled --active`.
+4. Prueba con el número **Sandbox** de Kapso y tu propio teléfono. Solo contesta a los números de `WHATSAPP_TEST_NUMBERS`.
+5. Para clientes reales, pon `WHATSAPP_AUTOREPLY=all` (hazlo solo cuando estés conforme con las respuestas).
+
 ## Seguimientos y resumen diario
 
 - Cada prospecto tiene una **fecha de seguimiento** (detalle del prospecto, botón ⏰ en Telegram o la palabra `recordar 3`). Al marcarlo **Contactado** se agenda solo en 3 días; al cerrarlo (ganado/perdido) se borra. Lo hace un trigger en la base de datos, así que el dashboard y Telegram se comportan igual.

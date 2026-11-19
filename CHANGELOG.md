@@ -1,6 +1,13 @@
 # Changelog
 
-Cada versión tiene su tag en git (`v0.1.0` … `v1.6.0`).
+Cada versión tiene su tag en git (`v0.1.0` … `v1.7.0`).
+
+## 1.7.0: Agente de WhatsApp con IA (Kapso)
+- **Webhook `/api/whatsapp/webhook`:** recibe los mensajes de WhatsApp desde Kapso, los guarda en Neon (`whatsapp_conversations` y `whatsapp_messages`, migración `0016`) y responde con Claude. Verifica la firma `X-Webhook-Signature` (HMAC-SHA256 del cuerpo exacto, comparación en tiempo constante); sin secreto o con firma inválida no toca la base de datos. Responde 200 al instante y contesta después (`after`), porque Kapso exige respuesta en menos de 10 s; ignora reintentos con el mismo `wamid`.
+- **Qué hace el agente:** resuelve dudas frecuentes con el catálogo de servicios (precios solo como «desde»), recoge la solicitud de llamada y avisa por Telegram, y comparte el enlace de la cotización del prospecto cuando su teléfono coincide con uno de Prospecta.
+- **Traspaso a una persona:** si piden precio cerrado o descuento, hay queja, piden hablar con alguien o el agente no sabe, pausa esa conversación (`handoff`), avisa por Telegram con el motivo y un enlace `wa.me`, y deja de contestarle.
+- **Seguro por defecto:** solo contesta a los números de `WHATSAPP_TEST_NUMBERS`; para clientes reales hay que poner `WHATSAPP_AUTOREPLY=all`. Freno de 30 mensajes por hora por número, y los textos del cliente se tratan como datos, no como instrucciones.
+- Variables nuevas en la web: `KAPSO_WEBHOOK_SECRET`, `KAPSO_API_KEY`, `ANTHROPIC_API_KEY` (opcional `ANTHROPIC_MODEL`), `WHATSAPP_TEST_NUMBERS`, `WHATSAPP_AUTOREPLY`, y `DASHBOARD_URL`, `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID` para los avisos y el enlace de cotización.
 
 ## 1.6.0: Tabla de prospectos ordenable y cambio de estado desde la lista
 - **Encabezados ordenables** en Prospectos: Prospecto (A→Z / Z→A), Fuente, Estado (por etapa del embudo), Score (mayor a menor), Seguimiento (más próximo primero) y Creado. Un clic ordena y otro invierte; la flecha marca el orden activo y se conserva al filtrar, buscar y paginar. El orden se hace en la base de datos (no solo en la página visible) y con lista blanca, así que nada de la URL entra al SQL. Nombres con acento ("Óptica") se ordenan junto a su letra.
